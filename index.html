@@ -5,16 +5,11 @@
   <title>BuddyUp – Најди вистински луѓе</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
-
-  <!-- Firebase иницијализација -->
-  <script type="module" src="firebase.js"></script>
-  <script type="module" src="auth.js"></script>
 </head>
 <body>
 
 <div class="auth-wrapper">
 
-  <!-- ЛОГО -->
   <h1 class="logo">BuddyUp</h1>
   <p style="color:#9ca3af; text-align:center; margin-bottom:24px; font-size:0.92rem; max-width:380px;">
     Најди вистински луѓе. Создај вистински врски. Од било каде во светот.
@@ -67,11 +62,15 @@
       Имаш профил? <span onclick="showLogin()">Најави се</span>
     </p>
   </div>
-
 </div>
 
+<!-- ЕДЕН ЕДИНСТВЕН SCRIPT – ГАРАНТИРАНО РАБОТИ -->
+<script type="module">
+  import "./firebase.js";
+  import "./auth.js";
+</script>
+
 <script>
-  // Префрлање меѓу Login и Register
   function showRegister() {
     document.getElementById("loginCard").classList.add("hidden");
     document.getElementById("registerCard").classList.remove("hidden");
@@ -83,30 +82,21 @@
   }
 
   // Автоматско пресметување на години
-  const birthInput = document.getElementById("regBirthdate");
-  const ageDisplay = document.getElementById("ageDisplay");
-
-  if (birthInput && ageDisplay) {
-    birthInput.addEventListener("change", () => {
-      const birthdate = birthInput.value;
-      if (!birthdate) {
-        ageDisplay.textContent = "—";
-        ageDisplay.style.color = "#e2e8f0";
-        return;
-      }
-
-      const today = new Date();
-      const birth = new Date(birthdate);
-      let age = today.getFullYear() - birth.getFullYear();
-      const monthDiff = today.getMonth() - birth.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-        age--;
-      }
-
-      ageDisplay.textContent = age;
-      ageDisplay.style.color = age >= 18 ? "#86efac" : "#fca5a5";
-    });
-  }
+  document.getElementById("regBirthdate")?.addEventListener("change", function () {
+    const birthdate = this.value;
+    if (!birthdate) {
+      document.getElementById("ageDisplay").textContent = "—";
+      document.getElementById("ageDisplay").style.color = "#e2e8f0";
+      return;
+    }
+    const today = new Date();
+    const birth = new Date(birthdate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    document.getElementById("ageDisplay").textContent = age;
+    document.getElementById("ageDisplay").style.color = age >= 18 ? "#86efac" : "#fca5a5";
+  });
 </script>
 
 </body>
