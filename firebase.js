@@ -6,20 +6,15 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-s
 
 const firebaseConfig = {
   apiKey: "AIzaSyCtHe4ecKhlwFZ8fyvb7NKdVpVTZfTlvEk",
-  authDomain: "buddyup-78f9c.firebaseapp.com",        // ПОПРАВЕНО
+  authDomain: "buddyup-78f9c.firebaseapp.com",
   projectId: "buddyup-78f9c",
   storageBucket: "buddyup-78f9c.appspot.com",
   messagingSenderId: "329602566744",
   appId: "1:329602566744:web:ab4174964733773b4bd82d"
 };
 
-// Иницијализирај ја апликацијата
 const app = initializeApp(firebaseConfig);
 
-// Експортирај ги сервисите
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-
-// Опционално: експортирај го и app ако ти треба некаде
-export { app };
