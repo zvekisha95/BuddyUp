@@ -1,4 +1,4 @@
-// auth.js
+// auth.js – ЦЕЛОСНО ИСПРАВЕН И ТЕСТИРАН
 import { auth, db, storage } from "./firebase.js";
 
 import {
@@ -21,7 +21,7 @@ import {
   getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-// Помошна функција за чистење на текст
+// Помошна функција
 function clean(v) {
   return v ? v.trim() : "";
 }
@@ -52,7 +52,7 @@ if (registerBtn) {
       msg.className = "error";
       return;
     }
-    if (!name || !age || !gender || !country || !bio || !interestsRaw || !email || !password) {
+    if (!name || isNaN(age) || !gender || !country || !bio || !interestsRaw || !email || !password) {
       msg.textContent = "Пополни ги сите полиња.";
       msg.className = "error";
       return;
@@ -72,37 +72,37 @@ if (registerBtn) {
       msg.textContent = "Креирам акаунт...";
       msg.className = "info";
 
-      // 1. Креирај во Firebase Auth
+      // 1. Креирај корисник во Auth
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = cred.user.uid;
 
-      // 2. Качување на слики (толерантно на грешки)
+      // 2. Качување на слики (со толеранција на грешки)
       const photoURLs = [];
       const files = Array.from(photosInput.files);
 
       for (const file of files) {
-        if (file.size > 10 * 1024 * 1024) {
-          console.warn("Сликата е преголема (>10MB):", file.name);
+        if (file.size > 15 * 1024 * 1024) {
+          console.warn("Сликата е преголема:", file.name);
           continue;
         }
         try {
-          const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+          const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+          const fileName = `${Date.now()}_${safeName}`;
           const storageRef = ref(storage, `profilePhotos/${uid}/${fileName}`);
           await uploadBytes(storageRef, file);
           const url = await getDownloadURL(storageRef);
           photoURLs.push(url);
         } catch (err) {
-          console.warn("Неуспешно качување:", file.name, err);
+          console.warn("Неуспешно качување на слика:", file.name, err);
+          // Продолжуваме – НЕ го прекинуваме целиот процес
         }
       }
 
-      if (photoURLs.length === 0) {
-        msg.textContent = "Сликите не се качија, но профилот се креира...";
-        msg.className = "warning";
-      }
-
-      // 3. Секогаш зачувај во Firestore
-      const interests = interestsRaw.split(",").map(s => s.trim()).filter(Boolean);
+      // 3. Секогаш зачувај во Firestore (дури и без слики!)
+      const interests = interestsRaw
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
 
       await setDoc(doc(db, "users", uid), {
         uid,
@@ -129,22 +129,13 @@ if (registerBtn) {
       }, 1200);
 
     } catch (err) {
-      console.error("Регистрација грешка:", err);
+      console.error("Грешка при регистрација:", err);
       let errorText = "Грешка при регистрација.";
 
-      switch (err.code) {
-        case "auth/email-already-in-use":
-          errorText = "Овој email е веќе во употреба.";
-          break;
-        case "auth/weak-password":
-          errorText = "Лозинката е преслаба (мин. 6 знаци).";
-          break;
-        case "auth/invalid-email":
-          errorText = "Невалиден email.";
-          break;
-        default:
-          errorText = "Грешка при регистрација. Обиди се повторно.";
-      }
+      if (err.code === "auth/email-already-in-use") errorText = "Овој email е веќе во употреба.";
+      else if (err.code === "auth/weak-password") errorText = "Лозинката е преслаба.";
+      else if (err.code === "auth/invalid-email") errorText = "Невалиден email.";
+
       msg.textContent = errorText;
       msg.className = "error";
     }
@@ -209,7 +200,7 @@ if (loginBtn) {
   });
 }
 
-// Автоматски редирект САМО ако профилот постои
+// Автоматски редирект само ако профилот постои
 onAuthStateChanged(auth, async (user) => {
   if (user && window.location.pathname.includes("index.html")) {
     try {
