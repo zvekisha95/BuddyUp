@@ -1,97 +1,77 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="mk">
 <head>
   <meta charset="UTF-8" />
-  <title>BuddyUp – Connect with Real People</title>
+  <title>BuddyUp – Најди вистински луѓе</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
 
-  <!-- MUST BE FIRST -->
+  <!-- Firebase иницијализација -->
   <script type="module" src="firebase.js"></script>
-
-  <!-- AUTH HANDLER -->
   <script type="module" src="auth.js"></script>
 </head>
-
 <body>
 
 <div class="auth-wrapper">
 
-  <!-- BRAND -->
+  <!-- ЛОГО -->
   <h1 class="logo">BuddyUp</h1>
-
-  <!-- TAGLINE -->
-  <p style="color:#9ca3af; text-align:center; margin-bottom:20px; font-size:0.9rem;">
-    Find real people. Build real connections. Anywhere in the world.
+  <p style="color:#9ca3af; text-align:center; margin-bottom:24px; font-size:0.92rem; max-width:380px;">
+    Најди вистински луѓе. Создај вистински врски. Од било каде во светот.
   </p>
 
-  <!-- LOGIN CARD -->
+  <!-- LOGIN -->
   <div id="loginCard" class="auth-card">
-    <h2>Log In</h2>
+    <h2>Најава</h2>
 
     <label>Email</label>
-    <input type="email" id="loginEmail" placeholder="example@mail.com" required />
+    <input type="email" id="loginEmail" placeholder="tvoj@mail.com" required />
 
-    <label>Password</label>
+    <label>Лозинка</label>
     <input type="password" id="loginPassword" placeholder="••••••••" required />
 
-    <button class="btn" id="loginBtn">Log In</button>
+    <button class="btn" id="loginBtn">Најави се</button>
 
-    <div id="loginMessage"></div>
+    <div id="loginMessage" style="margin:12px 0; min-height:20px;"></div>
 
     <p class="switch-link">
-      Don’t have an account? <span onclick="showRegister()">Sign up</span>
+      Нема профил? <span onclick="showRegister()">Регистрирај се</span>
     </p>
   </div>
 
-  <!-- REGISTER CARD -->
+  <!-- REGISTER -->
   <div id="registerCard" class="auth-card hidden">
-    <h2>Create Account</h2>
-
-    <label>Profile Photos (you can upload multiple)</label>
-    <input type="file" id="regPhotos" accept="image/*" multiple required />
-
-    <label>Full Name</label>
-    <input type="text" id="regName" placeholder="Your name" required />
-
-    <label>Age</label>
-    <input type="number" id="regAge" min="18" max="99" required />
-
-    <label>Gender</label>
-    <select id="regGender" required>
-      <option value="">Choose...</option>
-      <option value="male">Male</option>
-      <option value="female">Female</option>
-      <option value="other">Other</option>
-    </select>
-
-    <label>Country</label>
-    <input type="text" id="regCountry" placeholder="USA, Germany, Spain..." required />
-
-    <label>Short Bio</label>
-    <textarea id="regBio" placeholder="Tell something about yourself..." required></textarea>
-
-    <label>Interests (comma separated)</label>
-    <input type="text" id="regInterests" placeholder="travel, music, movies" required />
+    <h2>Креирај профил</h2>
 
     <label>Email</label>
-    <input type="email" id="regEmail" placeholder="example@mail.com" required />
+    <input type="email" id="regEmail" placeholder="tvoj@mail.com" required />
 
-    <label>Password</label>
-    <input type="password" id="regPassword" placeholder="••••••••" required />
+    <label>Лозинка</label>
+    <input type="password" id="regPassword" placeholder="Минимум 6 знаци" required />
 
-    <button class="btn" id="registerBtn">Create Account</button>
+    <label>Потврди лозинка</label>
+    <input type="password" id="regConfirmPassword" placeholder="Повтори ја лозинката" required />
 
-    <div id="registerMessage"></div>
+    <label>Датум на раѓање</label>
+    <input type="date" id="regBirthdate" required />
+
+    <div style="margin:14px 0 20px; font-size:0.88rem; color:#e2e8f0;">
+      Возраст: <strong id="ageDisplay" style="color:#86efac;">—</strong> години
+    </div>
+
+    <button class="btn" id="registerBtn">Регистрирај се</button>
+
+    <div id="registerMessage" style="margin:12px 0; min-height:48px; line-height:1.4;"></div>
 
     <p class="switch-link">
-      Already have an account? <span onclick="showLogin()">Log in</span>
+      Имаш профил? <span onclick="showLogin()">Најави се</span>
     </p>
   </div>
 
 </div>
 
 <script>
+  // Префрлање меѓу Login и Register
   function showRegister() {
     document.getElementById("loginCard").classList.add("hidden");
     document.getElementById("registerCard").classList.remove("hidden");
@@ -100,6 +80,32 @@
   function showLogin() {
     document.getElementById("registerCard").classList.add("hidden");
     document.getElementById("loginCard").classList.remove("hidden");
+  }
+
+  // Автоматско пресметување на години
+  const birthInput = document.getElementById("regBirthdate");
+  const ageDisplay = document.getElementById("ageDisplay");
+
+  if (birthInput && ageDisplay) {
+    birthInput.addEventListener("change", () => {
+      const birthdate = birthInput.value;
+      if (!birthdate) {
+        ageDisplay.textContent = "—";
+        ageDisplay.style.color = "#e2e8f0";
+        return;
+      }
+
+      const today = new Date();
+      const birth = new Date(birthdate);
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+
+      ageDisplay.textContent = age;
+      ageDisplay.style.color = age >= 18 ? "#86efac" : "#fca5a5";
+    });
   }
 </script>
 
