@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BuddyUp – My Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="module" src="my-profile.js"></script>
+
+  <style>
+    .my-profile-page {
+      max-width: 960px;
+      margin: 18px auto 32px auto;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 20px;
+    }
+    @media (max-width: 820px) {
+      .my-profile-page {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .glass-card {
+      background: radial-gradient(circle at top, rgba(24,27,37,0.96) 0, rgba(11,15,25,0.94) 40%, rgba(5,6,10,0.98) 100%);
+      border-radius: 22px;
+      padding: 16px 16px 14px 16px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      box-shadow: 0 32px 85px rgba(0, 0, 0, 0.95);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background:
+        radial-gradient(circle at 0 0, rgba(94, 226, 255, 0.18), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(255, 78, 115, 0.2), transparent 60%);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .glass-inner {
+      position: relative;
+      z-index: 1;
+    }
+
+    .my-main-photo {
+      width: 100%;
+      max-height: 420px;
+      border-radius: 20px;
+      object-fit: cover;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      box-shadow:
+        0 18px 35px rgba(0,0,0,0.85),
+        0 0 26px rgba(255,78,115,0.6);
+      margin-bottom: 10px;
+    }
+
+    .my-thumbs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .my-thumbs img {
+      width: 70px;
+      height: 70px;
+      border-radius: 16px;
+      object-fit: cover;
+      cursor: pointer;
+      opacity: 0.8;
+      border: 2px solid transparent;
+      flex-shrink: 0;
+    }
+
+    .my-thumbs img.active {
+      opacity: 1;
+      border-color: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 14px rgba(255, 78, 115, 0.8);
+    }
+
+    .my-name-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .my-name-row h1 {
+      font-size: 1.4rem;
+    }
+
+    .my-meta {
+      font-size: 0.9rem;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+
+    .my-bio {
+      font-size: 0.9rem;
+      color: #e5e7eb;
+      margin-bottom: 10px;
+    }
+
+    .my-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .my-tag {
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.94);
+      border: 1px solid rgba(148,163,184,0.6);
+    }
+
+    .my-extra-fields {
+      font-size: 0.82rem;
+      color: #9ca3af;
+      display: grid;
+      gap: 3px;
+      margin-bottom: 12px;
+    }
+
+    .my-profile-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .btn-edit-profile {
+      border-radius: 999px;
+      padding: 9px 16px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.9rem;
+      background-image: linear-gradient(135deg, #ff4e73, #ff335f);
+      color: #fff;
+      box-shadow:
+        0 12px 32px rgba(255, 78, 115, 0.75),
+        0 0 16px rgba(255, 78, 115, 0.85);
+    }
+
+    .my-profile-status {
+      font-size: 0.78rem;
+      color: #9ca3af;
+      margin-top: 6px;
+    }
+
+    .my-back {
+      max-width: 960px;
+      margin: 14px auto 0 auto;
+      padding: 0 16px;
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+    .my-back a { color: #e5e7eb; }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-pill">B</div>
+      <div>
+        <div class="brand-text-main">BuddyUp</div>
+        <div class="brand-text-sub">My Profile</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;">
+      <nav class="nav-links">
+        <a href="home.html">Explore</a>
+        <a href="my-profile.html">My Profile</a>
+      </nav>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </div>
+</header>
+
+<div class="my-back">
+  <a href="home.html">← Back to Explore</a>
+</div>
+
+<main class="my-profile-page" id="myProfileContainer">
+  <!-- Filled by my-profile.js -->
+</main>
+
+</body>
+</html>

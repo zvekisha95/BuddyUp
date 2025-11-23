@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BuddyUp – Explore Profiles</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="module" src="home.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-pill">B</div>
+      <div>
+        <div class="brand-text-main">BuddyUp</div>
+        <div class="brand-text-sub">Explore profiles worldwide</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:16px;">
+      <nav class="nav-links">
+        <a href="home.html">Explore</a>
+        <a href="my-profile.html">My Profile</a>
+        <a href="chats.html">Chats</a>
+      </nav>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section style="max-width:1080px;margin:16px auto 4px auto;padding:0 16px;">
+    <h2 style="font-size:1rem;text-transform:uppercase;letter-spacing:0.14em;color:#9ca3af;margin-bottom:6px;">
+      Explore
+    </h2>
+    <p style="font-size:0.82rem;color:#9ca3af;">
+      Tap a profile to see full details and decide if you want to Like or Pass.
+    </p>
+  </section>
+
+  <section class="profiles-container" id="profilesContainer">
+    <!-- Cards from JS -->
+  </section>
+</main>
+
+</body>
+</html>
