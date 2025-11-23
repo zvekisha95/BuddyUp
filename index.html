@@ -9,62 +9,37 @@
 <body>
 
 <div class="auth-wrapper">
-
   <h1 class="logo">BuddyUp</h1>
-  <p style="color:#9ca3af; text-align:center; margin-bottom:24px; font-size:0.92rem; max-width:380px;">
-    Најди вистински луѓе. Создај вистински врски. Од било каде во светот.
+  <p style="color:#9ca3af; text-align:center; margin-bottom:24px; font-size:0.92rem;">
+    Регистрирај се брзо и пополни го профилот подоцна.
   </p>
 
   <!-- LOGIN -->
   <div id="loginCard" class="auth-card">
     <h2>Најава</h2>
-
-    <label>Email</label>
-    <input type="email" id="loginEmail" placeholder="tvoj@mail.com" required />
-
-    <label>Лозинка</label>
-    <input type="password" id="loginPassword" placeholder="••••••••" required />
-
+    <input type="email" id="loginEmail" placeholder="Email" required />
+    <input type="password" id="loginPassword" placeholder="Лозинка" required />
     <button class="btn" id="loginBtn">Најави се</button>
-
-    <div id="loginMessage" style="margin:12px 0; min-height:20px;"></div>
-
-    <p class="switch-link">
-      Нема профил? <span onclick="showRegister()">Регистрирај се</span>
-    </p>
+    <div id="loginMessage"></div>
+    <p class="switch-link">Нема профил? <span onclick="showRegister()">Регистрирај се</span></p>
   </div>
 
   <!-- REGISTER -->
   <div id="registerCard" class="auth-card hidden">
-    <h2>Креирај профил</h2>
-
-    <label>Email</label>
-    <input type="email" id="regEmail" placeholder="tvoj@mail.com" required />
-
-    <label>Лозинка</label>
-    <input type="password" id="regPassword" placeholder="Минимум 6 знаци" required />
-
-    <label>Потврди лозинка</label>
-    <input type="password" id="regConfirmPassword" placeholder="Повтори ја лозинката" required />
-
-    <label>Датум на раѓање</label>
+    <h2>Регистрација</h2>
+    <input type="email" id="regEmail" placeholder="Email" required />
+    <input type="password" id="regPassword" placeholder="Лозинка (мин. 6)" required />
+    <input type="password" id="regConfirmPassword" placeholder="Потврди лозинка" required />
     <input type="date" id="regBirthdate" required />
-
-    <div style="margin:14px 0 20px; font-size:0.88rem; color:#e2e8f0;">
+    <div style="margin:10px 0; color:#e2e8f0; font-size:0.9rem;">
       Возраст: <strong id="ageDisplay" style="color:#86efac;">—</strong> години
     </div>
-
     <button class="btn" id="registerBtn">Регистрирај се</button>
-
-    <div id="registerMessage" style="margin:12px 0; min-height:48px; line-height:1.4;"></div>
-
-    <p class="switch-link">
-      Имаш профил? <span onclick="showLogin()">Најави се</span>
-    </p>
+    <div id="registerMessage"></div>
+    <p class="switch-link">Имаш профил? <span onclick="showLogin()">Најави се</span></p>
   </div>
 </div>
 
-<!-- ЕДЕН ЕДИНСТВЕН SCRIPT – ГАРАНТИРАНО РАБОТИ -->
 <script type="module">
   import "./firebase.js";
   import "./auth.js";
@@ -75,25 +50,18 @@
     document.getElementById("loginCard").classList.add("hidden");
     document.getElementById("registerCard").classList.remove("hidden");
   }
-
   function showLogin() {
     document.getElementById("registerCard").classList.add("hidden");
     document.getElementById("loginCard").classList.remove("hidden");
   }
 
-  // Автоматско пресметување на години
-  document.getElementById("regBirthdate")?.addEventListener("change", function () {
-    const birthdate = this.value;
-    if (!birthdate) {
-      document.getElementById("ageDisplay").textContent = "—";
-      document.getElementById("ageDisplay").style.color = "#e2e8f0";
-      return;
-    }
+  document.getPId("regBirthdate")?.addEventListener("change", function () {
+    const birth = this.value;
+    if (!birth) return document.getElementById("ageDisplay").textContent = "—";
     const today = new Date();
-    const birth = new Date(birthdate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    const b = new Date(birth);
+    let age = today.getFullYear() - b.getFullYear();
+    if (today.getMonth() < b.getMonth() || (today.getMonth() === b.getMonth() && today.getDate() < b.getDate())) age--;
     document.getElementById("ageDisplay").textContent = age;
     document.getElementById("ageDisplay").style.color = age >= 18 ? "#86efac" : "#fca5a5";
   });
