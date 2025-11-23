@@ -1,12 +1,12 @@
-// auth.js – РЕГИСТРАЦИЈА БЕЗ СЛИКИ
+// auth.js
 import { auth, db } from "./firebase.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged,
-  signOut
+  signOut,
+  sendEmailVerification
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
 import { doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 function clean(v) { return v ? v.trim() : ""; }
@@ -15,48 +15,60 @@ function clean(v) { return v ? v.trim() : ""; }
 document.getElementById("registerBtn")?.addEventListener("click", async (e) => {
   e.preventDefault();
   const msg = document.getElementById("registerMessage");
-  msg.textContent = ""; msg.className = "";
+  msg.innerHTML = ""; msg.className = "";
 
+  const firstName = clean(document.getElementById("regFirstName")?.value);
+  const lastName = clean(document.getElementById("regLastName")?.value);
   const email = clean(document.getElementById("regEmail")?.value);
   const pass = document.getElementById("regPassword")?.value;
   const confirm = document.getElementById("regConfirmPassword")?.value;
-  const birth = document.getElementById("regBirthdate")?.value;
+  const birthdate = document.getElementById("regBirthdate")?.value;
+  const gender = document.querySelector('input[name="gender"]:checked')?.value;
 
-  if (!email || !pass || !confirm || !birth) return msg.textContent = "Пополни сè.", msg.className = "error";
+  if (!firstName || !lastName || !email || !pass || !confirm || !birthdate || !gender) {
+    return msg.textContent = "Пополни ги сите полиња.", msg.className = "error";
+  }
   if (pass !== confirm) return msg.textContent = "Лозинките не се совпаѓаат.", msg.className = "error";
-  if (pass.length < 6) return msg.textContent = "Лозинка мин. 6 знаци.", msg.className = "error";
-
-  const age = (() => {
-    const t = new Date(); const b = new Date(birth);
-    let a = t.getFullYear() - b.getFullYear();
-    if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) a--;
-    return a;
-  })();
-  if (age < 18) return msg.textContent = "Мора да имаш 18+ години.", msg.className = "error";
+  if (pass.length < 6) return msg.textContent = "Лозинката мора да има барем 6 знаци.", msg.className = "error";
 
   try {
-    msg.textContent = "Се регистрираш..."; msg.className = "info";
+    msg.innerHTML = "Се регистрираш...";
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    const uid = cred.user.uid;
+    const user = cred.user;
 
-    await setDoc(doc(db, "users", uid), {
-      uid, email, birthdate: birth, age,
-      name: "", country: "", bio: "", gender: "", interests: [], photos: [], mainPhoto: null,
-      instagram: null, discord: null, platforms: null, relationshipGoal: null,
+    // Прати верификационен мејл
+    await sendEmailVerification(user);
+
+    // Зачувај ги сите податоци
+    await setDoc(doc(db, "users", user.uid), {
+      uid: user.uid,
+      firstName,
+      lastName,
+      email,
+      birthdate,
+      gender,
+      fullName: `${firstName} ${lastName}`,
+      photos: [],
+      mainPhoto: null,
+      emailVerified: false,
       createdAt: serverTimestamp()
     });
 
-    msg.textContent = "Успешно! Пренасочување..."; msg.className = "success";
-    setTimeout(() => location.href = "home.html", 1200);
+    msg.innerHTML = `
+      <div style="color:#86efac;">
+        Успешно се регистрира!<br><br>
+        <strong>Провери го мејлот</strong> (и Spam) и кликни на линкот за да го активираш профилот.
+      </div>
+    `;
+
   } catch (err) {
-    console.error(err);
-    const txt = err.code === "auth/email-already-in-use" ? "Email-от е зафатен." :
+    const txt = err.code === "auth/email-already-in-use" ? "Овој email е веќе во употреба." :
                 err.code === "auth/invalid-email" ? "Невалиден email." : "Грешка при регистрација.";
     msg.textContent = txt; msg.className = "error";
   }
 });
 
-// LOGIN
+// LOGIN + Проверка за верификација
 document.getElementById("loginBtn")?.addEventListener("click", async (e) => {
   e.preventDefault();
   const msg = document.getElementById("loginMessage");
@@ -64,25 +76,33 @@ document.getElementById("loginBtn")?.addEventListener("click", async (e) => {
 
   const email = clean(document.getElementById("loginEmail")?.value);
   const pass = document.getElementById("loginPassword")?.value;
+
   if (!email || !pass) return msg.textContent = "Внеси email и лозинка.", msg.className = "error";
 
   try {
-    msg.textContent = "Се логираш..."; msg.className = "info";
     const cred = await signInWithEmailAndPassword(auth, email, pass);
-    const snap = await getDoc(doc(db, "users", cred.user.uid));
-    if (!snap.exists()) { await signOut(auth); return msg.textContent = "Немаш профил.", msg.className = "error"; }
+    const user = cred.user;
 
-    msg.textContent = "Успешно!"; msg.className = "success";
-    setTimeout(() => location.href = "home.html", 800);
+    if (!user.emailVerified) {
+      msg.innerHTML = "Мејлот не е верификуван. Провери го мејлот и кликни на линкот.";
+      msg.className = "error";
+      await signOut(auth);
+      return;
+    }
+
+    location.href = "home.html";
+
   } catch (err) {
-    msg.textContent = "Погрешни податоци."; msg.className = "error";
+    msg.textContent = "Погрешни податоци или мејлот не е верификуван.";
+    msg.className = "error";
   }
 });
 
 // Авто редирект
 onAuthStateChanged(auth, async (user) => {
   if (user && location.pathname.includes("index.html")) {
-    const snap = await getDoc(doc(db, "users", user.uid));
-    if (snap.exists()) location.href = "home.html";
+    if (user.emailVerified) {
+      location.href = "home.html";
+    }
   }
 });
