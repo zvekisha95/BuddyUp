@@ -1,24 +1,24 @@
 <!DOCTYPE html>
 <html lang="mk">
 <head>
-  <meta charset="UTF-8" />
-  <title>BuddyUp – Најди вистински луѓе</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>BuddyUp – Регистрација</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="auth-wrapper">
   <h1 class="logo">BuddyUp</h1>
-  <p style="color:#9ca3af; text-align:center; margin-bottom:24px; font-size:0.92rem;">
-    Регистрирај се брзо и пополни го профилот подоцна.
+  <p style="color:#9ca3af; text-align:center; margin-bottom:20px;">
+    Регистрирај се со твоите податоци
   </p>
 
   <!-- LOGIN -->
   <div id="loginCard" class="auth-card">
     <h2>Најава</h2>
-    <input type="email" id="loginEmail" placeholder="Email" required />
-    <input type="password" id="loginPassword" placeholder="Лозинка" required />
+    <input type="email" id="loginEmail" placeholder="Email" required>
+    <input type="password" id="loginPassword" placeholder="Лозинка" required>
     <button class="btn" id="loginBtn">Најави се</button>
     <div id="loginMessage"></div>
     <p class="switch-link">Нема профил? <span onclick="showRegister()">Регистрирај се</span></p>
@@ -27,15 +27,23 @@
   <!-- REGISTER -->
   <div id="registerCard" class="auth-card hidden">
     <h2>Регистрација</h2>
-    <input type="email" id="regEmail" placeholder="Email" required />
-    <input type="password" id="regPassword" placeholder="Лозинка (мин. 6)" required />
-    <input type="password" id="regConfirmPassword" placeholder="Потврди лозинка" required />
-    <input type="date" id="regBirthdate" required />
-    <div style="margin:10px 0; color:#e2e8f0; font-size:0.9rem;">
-      Возраст: <strong id="ageDisplay" style="color:#86efac;">—</strong> години
+
+    <input type="text" id="regFirstName" placeholder="Име" required>
+    <input type="text" id="regLastName" placeholder="Презиме" required>
+    <input type="email" id="regEmail" placeholder="Email" required>
+    <input type="password" id="regPassword" placeholder="Лозинка (мин. 6)" required>
+    <input type="password" id="regConfirmPassword" placeholder="Потврди лозинка" required>
+    <input type="date" id="regBirthdate" required>
+
+    <div style="margin:10px 0;">
+      <label><input type="radio" name="gender" value="Машко" required> Машко</label>
+      <label><input type="radio" name="gender" value="Женско"> Женско</label>
+      <label><input type="radio" name="gender" value="Друго"> Друго</label>
     </div>
+
     <button class="btn" id="registerBtn">Регистрирај се</button>
-    <div id="registerMessage"></div>
+    <div id="registerMessage" style="margin:15px 0; min-height:60px;"></div>
+
     <p class="switch-link">Имаш профил? <span onclick="showLogin()">Најави се</span></p>
   </div>
 </div>
@@ -54,17 +62,6 @@
     document.getElementById("registerCard").classList.add("hidden");
     document.getElementById("loginCard").classList.remove("hidden");
   }
-
-  document.getPId("regBirthdate")?.addEventListener("change", function () {
-    const birth = this.value;
-    if (!birth) return document.getElementById("ageDisplay").textContent = "—";
-    const today = new Date();
-    const b = new Date(birth);
-    let age = today.getFullYear() - b.getFullYear();
-    if (today.getMonth() < b.getMonth() || (today.getMonth() === b.getMonth() && today.getDate() < b.getDate())) age--;
-    document.getElementById("ageDisplay").textContent = age;
-    document.getElementById("ageDisplay").style.color = age >= 18 ? "#86efac" : "#fca5a5";
-  });
 </script>
 
 </body>
