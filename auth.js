@@ -1,3 +1,31 @@
+// auth.js
+import { auth, db, storage } from "./firebase.js";
+
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+import {
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+// Помошна функција за чистење на текст
+function clean(v) {
+  return v ? v.trim() : "";
+}
+
 // ================= REGISTER =================
 const registerBtn = document.getElementById("registerBtn");
 if (registerBtn) {
@@ -44,17 +72,17 @@ if (registerBtn) {
       msg.textContent = "Креирам акаунт...";
       msg.className = "info";
 
-      // 1. Креирај корисник во Auth
+      // 1. Креирај во Firebase Auth
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = cred.user.uid;
 
-      // 2. Качување на слики (со толеранција на грешки)
+      // 2. Качување на слики (толерантно на грешки)
       const photoURLs = [];
       const files = Array.from(photosInput.files);
 
       for (const file of files) {
         if (file.size > 10 * 1024 * 1024) {
-          console.warn("Сликата е преголема:", file.name);
+          console.warn("Сликата е преголема (>10MB):", file.name);
           continue;
         }
         try {
@@ -64,7 +92,7 @@ if (registerBtn) {
           const url = await getDownloadURL(storageRef);
           photoURLs.push(url);
         } catch (err) {
-          console.warn("Неуспешно качување на слика:", file.name, err);
+          console.warn("Неуспешно качување:", file.name, err);
         }
       }
 
@@ -74,10 +102,7 @@ if (registerBtn) {
       }
 
       // 3. Секогаш зачувај во Firestore
-      const interests = interestsRaw
-        .split(",")
-        .map(s => s.trim())
-        .filter(Boolean);
+      const interests = interestsRaw.split(",").map(s => s.trim()).filter(Boolean);
 
       await setDoc(doc(db, "users", uid), {
         uid,
@@ -104,7 +129,7 @@ if (registerBtn) {
       }, 1200);
 
     } catch (err) {
-      console.error("Грешка при регистрација:", err);
+      console.error("Регистрација грешка:", err);
       let errorText = "Грешка при регистрација.";
 
       switch (err.code) {
@@ -120,9 +145,80 @@ if (registerBtn) {
         default:
           errorText = "Грешка при регистрација. Обиди се повторно.";
       }
+      msg.textContent = errorText;
+      msg.className = "error";
+    }
+  });
+}
+
+// ================= LOGIN =================
+const loginBtn = document.getElementById("loginBtn");
+if (loginBtn) {
+  loginBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+
+    const msg = document.getElementById("loginMessage");
+    msg.textContent = "";
+    msg.className = "";
+
+    const email = clean(document.getElementById("loginEmail").value);
+    const password = document.getElementById("loginPassword").value;
+
+    if (!email || !password) {
+      msg.textContent = "Внеси email и лозинка.";
+      msg.className = "error";
+      return;
+    }
+
+    try {
+      msg.textContent = "Се логираш...";
+      msg.className = "info";
+
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const uid = cred.user.uid;
+
+      // Проверка дали профилот постои во Firestore
+      const userDoc = await getDoc(doc(db, "users", uid));
+      if (!userDoc.exists()) {
+        await signOut(auth);
+        msg.textContent = "Немаш профил. Регистрирај се повторно.";
+        msg.className = "error";
+        return;
+      }
+
+      msg.textContent = "Успешно се логираше!";
+      msg.className = "success";
+
+      setTimeout(() => {
+        window.location.href = "home.html";
+      }, 800);
+
+    } catch (err) {
+      console.error("Login грешка:", err);
+      let errorText = "Погрешна лозинка или email.";
+
+      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
+        errorText = "Погрешни податоци за логирање.";
+      } else if (err.code === "auth/too-many-requests") {
+        errorText = "Премногу обиди. Почекај малку.";
+      }
 
       msg.textContent = errorText;
       msg.className = "error";
     }
   });
 }
+
+// Автоматски редирект САМО ако профилот постои
+onAuthStateChanged(auth, async (user) => {
+  if (user && window.location.pathname.includes("index.html")) {
+    try {
+      const snap = await getDoc(doc(db, "users", user.uid));
+      if (snap.exists()) {
+        window.location.href = "home.html";
+      }
+    } catch (err) {
+      console.error("Грешка при проверка на профил:", err);
+    }
+  }
+});
