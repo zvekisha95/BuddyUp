@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!--ARTIFACT-START-->
+<title>Sky Stacker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#2b1d4f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@500;700;800&display=swap">
+<style>
+/* Layout: full-bleed canvas tower; HUD floats top, cards rise from the bottom like slabs */
+:root {
+  --ink: #1d1530;
+  --paper: #fffaf3;
+  --gem: #35e0d0;
+  --gem-deep: #0f8f8a;
+  --hot: #ff5d8f;
+  --hot-deep: #c22d61;
+  --sun: #ffc94a;
+  --sun-deep: #c98a0c;
+  --glass: rgba(255, 250, 243, .14);
+  --display: 'Bungee', 'Rubik', 'Arial Black', system-ui, sans-serif;
+  --body: 'Rubik', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; overflow: hidden; background: #2b1d4f; }
+body {
+  font-family: var(--body); color: var(--paper);
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  touch-action: none; overscroll-behavior: none;
+}
+canvas#c { position: fixed; inset: 0; display: block; }
+
+.hud {
+  position: fixed; inset: 0 0 auto; pointer-events: none;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 18px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: start;
+}
+.score {
+  grid-column: 2; font-family: var(--display); font-size: clamp(64px, 20vw, 112px); line-height: 1;
+  text-shadow: 0 4px 0 rgba(0,0,0,.18), 0 10px 30px rgba(0,0,0,.18);
+  font-variant-numeric: tabular-nums; transition: opacity .3s;
+}
+.score.bump { animation: bump .22s ease-out; }
+@keyframes bump { 0% { transform: scale(1.22); } 100% { transform: scale(1); } }
+.pill {
+  justify-self: end; display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(20, 10, 40, .28); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-radius: 999px; padding: 6px 12px 6px 8px; font-weight: 800; font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.pill svg { width: 20px; height: 20px; }
+.best-pill { justify-self: start; grid-column: 1; }
+#gemPill { grid-column: 3; }
+.menu-best { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; font-family: var(--display); font-size: 18px; background: rgba(20, 10, 40, .28); padding: 6px 14px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.menu-best svg { width: 20px; height: 20px; }
+
+.screen {
+  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 70px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+.screen.fade-in { animation: fadeIn .35s ease-out both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.logo { font-family: var(--display); text-align: center; line-height: .9; margin: 4vh 0 0; }
+.logo .l1 { display: block; font-size: clamp(48px, 15vw, 88px); color: var(--paper);
+  text-shadow: 0 5px 0 var(--hot-deep), 0 14px 30px rgba(0,0,0,.25); }
+.logo .l2 { display: block; font-size: clamp(36px, 11vw, 64px); color: var(--sun);
+  text-shadow: 0 5px 0 var(--sun-deep), 0 14px 30px rgba(0,0,0,.25); letter-spacing: .02em; }
+.tagline { margin: 14px 0 0; font-weight: 700; opacity: .85; text-align: center; font-size: 15px; max-width: 28ch; text-wrap: balance; }
+
+.spacer { flex: 1; }
+.tap {
+  font-family: var(--display); font-size: 20px; letter-spacing: .06em; text-align: center;
+  animation: pulse 1.4s ease-in-out infinite; text-shadow: 0 3px 0 rgba(0,0,0,.2);
+}
+@keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.96); } }
+
+.row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 22px; }
+
+/* Buttons are thick slabs: face + darker edge underneath, pressed = slab sinks */
+.btn {
+  --face: var(--paper); --edge: #cdbfae; --txt: var(--ink);
+  appearance: none; border: 0; cursor: pointer; font-family: var(--display); font-size: 17px; letter-spacing: .04em;
+  color: var(--txt); background: var(--face); border-radius: 16px; padding: 14px 20px;
+  box-shadow: 0 6px 0 var(--edge), 0 12px 24px rgba(0,0,0,.22);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  transition: transform .08s, box-shadow .08s; min-height: 52px;
+}
+.btn:active { transform: translateY(5px); box-shadow: 0 1px 0 var(--edge), 0 4px 10px rgba(0,0,0,.2); }
+.btn:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+.btn svg { width: 22px; height: 22px; flex: none; }
+.btn.hot { --face: var(--hot); --edge: var(--hot-deep); --txt: #fff; }
+.btn.gem { --face: var(--gem); --edge: var(--gem-deep); --txt: #06302e; }
+.btn.sun { --face: var(--sun); --edge: var(--sun-deep); --txt: #3b2600; }
+.btn.icon { padding: 12px; width: 56px; }
+.btn.big { font-size: 22px; padding: 16px 34px; min-width: 220px; }
+.btn[disabled] { filter: grayscale(.8); opacity: .6; }
+
+.card {
+  width: min(380px, 100%); box-sizing: border-box; background: var(--paper); color: var(--ink);
+  border-radius: 26px; padding: 22px 20px 20px; box-shadow: 0 10px 0 #d7c8b6, 0 30px 60px rgba(0,0,0,.3);
+  text-align: center;
+}
+.over-screen { justify-content: flex-end; }
+.card h2 { font-family: var(--display); margin: 0; font-size: 15px; letter-spacing: .12em; opacity: .55; font-weight: 400; }
+.final { font-family: var(--display); font-size: 64px; line-height: 1; margin: 6px 0 2px; color: var(--hot); font-variant-numeric: tabular-nums; }
+.newbest { display: inline-block; font-family: var(--display); font-size: 14px; background: var(--sun); color: #3b2600; padding: 5px 12px; border-radius: 999px; transform: rotate(-3deg); animation: wobble 1s ease-in-out infinite; }
+@keyframes wobble { 0%,100% { transform: rotate(-3deg) scale(1); } 50% { transform: rotate(3deg) scale(1.08); } }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 0; }
+.stat { background: #f2e9dc; border-radius: 14px; padding: 10px 8px; }
+.stat b { display: flex; align-items: center; justify-content: center; gap: 5px; font-family: var(--display); font-size: 24px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.stat b svg { width: 20px; height: 20px; }
+.stat span { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .55; }
+.card .row { margin-top: 16px; flex-wrap: nowrap; gap: 10px; }
+.card #contBtn { flex: 1; min-width: 0; padding: 12px 10px; font-size: 15px; }
+.card .btn.icon { width: 52px; }
+.card .btn.big { width: 100%; }
+.card .btn { box-shadow: 0 6px 0 var(--edge); }
+
+.shop-screen { background: rgba(18, 10, 36, .55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow-y: auto; touch-action: pan-y; }
+.shop-head { width: min(520px, 100%); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shop-head h2 { font-family: var(--display); font-size: 28px; margin: 0; font-weight: 400; }
+.grid { width: min(520px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; padding-bottom: 20px; }
+.skin {
+  appearance: none; border: 0; cursor: pointer; text-align: left; font: inherit; color: var(--ink);
+  background: var(--paper); border-radius: 20px; padding: 10px 10px 12px; box-shadow: 0 6px 0 #d7c8b6;
+  display: flex; flex-direction: column; gap: 8px; transition: transform .08s;
+}
+.skin:active { transform: translateY(4px); }
+.skin:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+.skin canvas { width: 100%; aspect-ratio: 1 / .85; border-radius: 14px; display: block; max-width: 100%; }
+.skin .nm { font-family: var(--display); font-size: 15px; }
+.skin .st { display: flex; align-items: center; gap: 5px; font-weight: 800; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+.skin .st svg { width: 16px; height: 16px; }
+.skin.on { box-shadow: 0 6px 0 var(--gem-deep), 0 0 0 3px var(--gem); }
+.skin.on .st { color: var(--gem-deep); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); transform: translate(-50%, 20px);
+  background: var(--paper); color: var(--ink); font-weight: 800; padding: 12px 18px; border-radius: 999px;
+  box-shadow: 0 6px 0 #d7c8b6, 0 16px 30px rgba(0,0,0,.25); opacity: 0; transition: opacity .25s, transform .25s;
+  pointer-events: none; display: flex; align-items: center; gap: 8px; white-space: nowrap; z-index: 5;
+}
+.toast svg { width: 20px; height: 20px; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.corner { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); left: max(14px, env(safe-area-inset-left, 0px)); display: flex; gap: 8px; }
+.corner .btn { width: 46px; min-height: 46px; padding: 0; border-radius: 14px; font-size: 13px; box-shadow: 0 4px 0 var(--edge); }
+.corner .btn svg { width: 20px; height: 20px; }
+@media (prefers-reduced-motion: reduce) { .tap, .newbest { animation: none; } .score.bump { animation: none; } }
+</style>
+<!--HEAD-END-->
+</head>
+<body>
+<!--BODY-START-->
+<canvas id="c" aria-label="Sky Stacker game"></canvas>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-gem" viewBox="0 0 24 24"><path fill="#35e0d0" d="M6 3h12l4.5 6L12 21.5 1.5 9z"/><path fill="#9ff7ee" d="M6 3h12l-3 6H9z"/><path fill="#0f8f8a" d="M1.5 9H9l3 12.5zM15 9h7.5L12 21.5z"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9.5l5 5m0-5l-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-skins" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l9 4.5-9 4.5-9-4.5z"/><path fill="currentColor" opacity=".7" d="M3 11l9 4.5 9-4.5v3L12 18.5 3 14z"/><path fill="currentColor" opacity=".45" d="M3 17l9 4.5 9-4.5v-1.5L12 20 3 15.5z"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l9 8h-3v9h-4.5v-6h-3v6H6v-9H3z"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path fill="#ffc94a" d="M7 3h10v5a5 5 0 0 1-10 0zM10 14h4v4h3v3H7v-3h3z"/><path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3" stroke="#ffc94a" stroke-width="2" fill="none"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.5v15l12.5-7.5z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M7 10V8a5 5 0 0 1 10 0v2h1v11H6V10zm2 0h6V8a3 3 0 0 0-6 0z"/></symbol>
+  </defs>
+</svg>
+
+<div class="hud" id="hud">
+    <div class="score" id="score" hidden>0</div>
+  <div class="pill" id="gemPill"><svg><use href="#i-gem"/></svg><span id="gemHud">0</span></div>
+</div>
+
+<section class="screen fade-in" id="menu">
+  <h1 class="logo"><span class="l1">SKY</span><span class="l2">STACKER</span></h1>
+  <p class="tagline" data-t="tagline"></p>
+  <div class="menu-best"><svg><use href="#i-trophy"/></svg><span id="bestHud">0</span></div>
+  <div class="spacer"></div>
+  <div class="tap" data-t="tap"></div>
+  <div class="row">
+    <button class="btn gem" id="shopBtn" type="button"><svg><use href="#i-skins"/></svg><span data-t="skins"></span></button>
+  </div>
+</section>
+<div class="corner" id="corner">
+  <button class="btn" id="soundBtn" type="button" aria-label="Sound"><svg><use href="#i-sound"/></svg></button>
+  <button class="btn" id="langBtn" type="button" aria-label="Language">EN</button>
+</div>
+
+<section class="screen over-screen" id="over" hidden>
+  <div class="card">
+    <h2 data-t="score"></h2>
+    <div class="final" id="finalScore">0</div>
+    <div id="newBest" hidden><span class="newbest" data-t="newBest"></span></div>
+    <div class="stats">
+      <div class="stat"><b><svg><use href="#i-trophy"/></svg><span id="overBest">0</span></b><span data-t="best"></span></div>
+      <div class="stat"><b><svg><use href="#i-gem"/></svg><span id="overGems">+0</span></b><span data-t="earned"></span></div>
+    </div>
+    <div class="row">
+      <button class="btn hot big" id="retryBtn" type="button"><svg><use href="#i-play"/></svg><span data-t="retry"></span></button>
+    </div>
+    <div class="row">
+      <button class="btn gem" id="contBtn" type="button"><span data-t="cont"></span> 25 <svg><use href="#i-gem"/></svg></button>
+      <button class="btn icon" id="shareBtn" type="button" aria-label="Share"><svg><use href="#i-share"/></svg></button>
+      <button class="btn icon" id="homeBtn" type="button" aria-label="Home"><svg><use href="#i-home"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<section class="screen shop-screen fade-in" id="shop" hidden>
+  <div class="shop-head">
+    <button class="btn icon" id="shopBack" type="button" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <h2 data-t="skins"></h2>
+    <div class="pill" style="color:var(--paper)"><svg><use href="#i-gem"/></svg><span id="gemShop">0</span></div>
+  </div>
+  <div class="grid" id="grid"></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* ---------- i18n ---------- */
+const STR = {
+  en: { tagline: 'Drop each slab on the tower. Nail it perfectly to grow back.', tap: 'TAP TO START', skins: 'SKINS',
+        score: 'SCORE', best: 'Best', earned: 'Gems', retry: 'PLAY AGAIN', cont: 'CONTINUE', newBest: 'NEW BEST!',
+        perfect: 'PERFECT', amazing: 'AMAZING!', daily: 'Daily gift +20', equip: 'Tap to use', equipped: 'In use',
+        poor: 'Not enough gems', bought: 'Unlocked!', copied: 'Score copied', share: 'I stacked {n} floors in Sky Stacker! Can you beat me?' },
+  mk: { tagline: 'Спушти ја секоја плоча на кулата. Совршен потег ја враќа големината.', tap: 'ДОПРИ ЗА ПОЧЕТОК', skins: 'ИЗГЛЕДИ',
+        score: 'ПОЕНИ', best: 'Рекорд', earned: 'Дијаманти', retry: 'ИГРАЈ ПАК', cont: 'ПРОДОЛЖИ', newBest: 'НОВ РЕКОРД!',
+        perfect: 'СОВРШЕНО', amazing: 'ФЕНОМЕНАЛНО!', daily: 'Дневен подарок +20', equip: 'Допри за избор', equipped: 'Активно',
+        poor: 'Немаш доволно дијаманти', bought: 'Отклучено!', copied: 'Резултатот е копиран', share: 'Изградив {n} ката во Sky Stacker! Можеш ли подобро?' }
+};
+
+/* ---------- save ---------- */
+const SKEY = 'skystacker.v1';
+const save = { best: 0, gems: 0, owned: ['dawn'], theme: 'dawn', sound: true, lang: '', daily: '', games: 0 };
+try { Object.assign(save, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) {}
+if (!save.lang) save.lang = (navigator.language || '').toLowerCase().startsWith('mk') ? 'mk' : 'en';
+const persist = () => { try { localStorage.setItem(SKEY, JSON.stringify(save)); } catch (e) {} };
+const T = k => STR[save.lang][k] || STR.en[k];
+function applyLang() {
+  document.documentElement.lang = save.lang;
+  document.querySelectorAll('[data-t]').forEach(el => el.textContent = T(el.dataset.t));
+  $('#langBtn').textContent = save.lang.toUpperCase();
+}
+
+/* ---------- themes (the shop) ---------- */
+const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
+const THEMES = [
+  { id: 'dawn', name: 'Dawn', price: 0,
+    block: v => ({ h: (190 + v * 6) % 360, s: 62, l: 62 }),
+    bg: v => { const h = (170 + v * 6) % 360; return [hsl(h, 55, 80), hsl(h + 50, 58, 62)]; }, dot: 'rgba(255,255,255,.35)' },
+  { id: 'sunset', name: 'Sunset', price: 120,
+    block: v => ({ h: (350 + 30 * Math.sin(v * .14) + 360) % 360, s: 82, l: 63 }),
+    bg: v => [hsl(262 + 10 * Math.sin(v * .05), 48, 30), hsl(18 + 8 * Math.sin(v * .07), 88, 64)], dot: 'rgba(255,220,180,.35)' },
+  { id: 'ocean', name: 'Ocean', price: 120,
+    block: v => ({ h: 178 + 26 * Math.sin(v * .12), s: 64, l: 55 }),
+    bg: v => [hsl(218, 62, 16), hsl(192 + 10 * Math.sin(v * .06), 70, 38)], dot: 'rgba(160,255,240,.3)' },
+  { id: 'neon', name: 'Neon', price: 200, glow: true,
+    block: v => ({ h: (290 + v * 11) % 360, s: 96, l: 56 }),
+    bg: v => [hsl(258, 55, 7), hsl((290 + v * 11) % 360, 60, 17)], dot: 'rgba(255,120,255,.4)' },
+  { id: 'candy', name: 'Candy', price: 260,
+    block: v => [{ h: 334, s: 90, l: 72 }, { h: 164, s: 68, l: 64 }, { h: 46, s: 96, l: 66 }, { h: 205, s: 85, l: 70 }][v % 4],
+    bg: () => [hsl(330, 90, 90), hsl(280, 70, 80)], dot: 'rgba(255,255,255,.55)' },
+  { id: 'mono', name: 'Marble', price: 320,
+    block: v => (v % 10 === 0 && v ? { h: 4, s: 80, l: 58 } : { h: 230, s: 10, l: 92 - (v % 10) * 4 }),
+    bg: () => [hsl(228, 14, 84), hsl(228, 12, 64)], dot: 'rgba(255,255,255,.4)' },
+  { id: 'gold', name: 'Gold Rush', price: 500, metal: true,
+    block: v => ({ h: 42 + 5 * Math.sin(v * .4), s: 80, l: 52 }),
+    bg: () => [hsl(270, 30, 9), hsl(32, 45, 22)], dot: 'rgba(255,210,120,.4)' },
+];
+let theme = THEMES.find(t => t.id === save.theme) || THEMES[0];
+
+/* ---------- audio (synthesized, no files) ---------- */
+let AC = null, master = null;
+function audio() {
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.gain.value = .5; master.connect(AC.destination); }
+    catch (e) { AC = null; }
+  }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(f, dur, type = 'sine', vol = .3, slide = 0, delay = 0) {
+  if (!save.sound || !audio()) return;
+  const t0 = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t0 + dur);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .008); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + .02);
+}
+const PENTA = [0, 2, 4, 7, 9];
+const sfx = {
+  place: () => { tone(180, .12, 'triangle', .35, .5); tone(90, .1, 'sine', .25, .6); },
+  perfect: c => { const i = Math.min(c - 1, 14), f = 523.25 * Math.pow(2, (PENTA[i % 5] + 12 * Math.floor(i / 5)) / 12);
+                  tone(f, .35, 'sine', .28); tone(f * 2, .25, 'triangle', .08, 1, .02); },
+  grow: () => { tone(880, .18, 'sine', .12, 1.5, .06); },
+  over: () => { tone(330, .5, 'sawtooth', .12, .3); tone(110, .6, 'sine', .3, .5); },
+  gem: () => { tone(1568, .12, 'sine', .12); tone(2093, .16, 'sine', .1, 1, .07); },
+  click: () => tone(660, .06, 'triangle', .15),
+};
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+
+/* ---------- canvas & iso projection ---------- */
+const cv = $('#c'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, U = 40;
+const C30 = Math.cos(Math.PI / 6), S30 = .5;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  U = Math.min(W * .1, H * .062);
+}
+addEventListener('resize', resize); resize();
+
+const BH = .5, SIZE = 3, RANGE = 5.4;
+let camY = 0, camT = 0, zoom = 1, zoomT = 1, anchor = .58, anchorT = .58, shake = 0, bgLvl = 0;
+function P(x, y, z) {
+  const uz = U * zoom;
+  return [W / 2 + (x - z) * C30 * uz, H * anchor + ((x + z) * S30 - (y - camY)) * uz];
+}
+
+function shade({ h, s, l }, dl, a = 1) { return hsl(h, s, Math.max(0, Math.min(100, l + dl)), a); }
+function path(g, pts) { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); }
+
+function drawBlock(g, proj, th, b, alpha = 1, h = BH) {
+  const { x, y, z, w, d } = b, col = th.block(b.lvl);
+  const A = proj(x, y + h, z), B = proj(x + w, y + h, z), Cc = proj(x + w, y + h, z + d), D = proj(x, y + h, z + d);
+  const B2 = proj(x + w, y, z), C2 = proj(x + w, y, z + d), D2 = proj(x, y, z + d);
+  g.globalAlpha = alpha;
+  path(g, [D, Cc, C2, D2]); g.fillStyle = shade(col, -7); g.fill();
+  path(g, [B, Cc, C2, B2]); g.fillStyle = shade(col, -18); g.fill();
+  path(g, [A, B, Cc, D]);
+  if (th.metal) {
+    const gr = g.createLinearGradient(A[0], A[1], Cc[0], Cc[1]);
+    gr.addColorStop(0, shade(col, 22)); gr.addColorStop(.45, shade(col, 6)); gr.addColorStop(.55, shade(col, 26)); gr.addColorStop(1, shade(col, 0));
+    g.fillStyle = gr;
+  } else g.fillStyle = shade(col, 7);
+  g.fill();
+  g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,.35)';
+  g.beginPath(); g.moveTo(D[0], D[1]); g.lineTo(Cc[0], Cc[1]); g.lineTo(B[0], B[1]); g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,.10)';
+  g.beginPath(); g.moveTo(D2[0], D2[1]); g.lineTo(C2[0], C2[1]); g.lineTo(B2[0], B2[1]); g.stroke();
+  if (th.glow) {
+    g.globalCompositeOperation = 'lighter'; g.strokeStyle = shade(col, 20, .7); g.lineWidth = 2;
+    path(g, [A, B, Cc, D]); g.stroke();
+    g.beginPath(); g.moveTo(Cc[0], Cc[1]); g.lineTo(C2[0], C2[1]); g.stroke();
+    g.globalCompositeOperation = 'source-over';
+  }
+  g.globalAlpha = 1;
+}
+
+/* pedestal: a tall column under the first slab that fades into the sky */
+function drawPedestal() {
+  const b = stack[0], col = theme.block(0), depth = 7;
+  const Cc = P(b.x + b.w, 0, b.z + b.d), D = P(b.x, 0, b.z + b.d), B = P(b.x + b.w, 0, b.z);
+  const C2 = P(b.x + b.w, -depth, b.z + b.d), D2 = P(b.x, -depth, b.z + b.d), B2 = P(b.x + b.w, -depth, b.z);
+  const top = Cc[1] - 30, bot = C2[1];
+  let gr = ctx.createLinearGradient(0, top, 0, bot); gr.addColorStop(0, shade(col, -12)); gr.addColorStop(1, shade(col, -12, 0));
+  path(ctx, [D, Cc, C2, D2]); ctx.fillStyle = gr; ctx.fill();
+  gr = ctx.createLinearGradient(0, top, 0, bot); gr.addColorStop(0, shade(col, -24)); gr.addColorStop(1, shade(col, -24, 0));
+  path(ctx, [B, Cc, C2, B2]); ctx.fillStyle = gr; ctx.fill();
+}
+
+/* ---------- game state ---------- */
+let state = 'menu';
+let stack = [], cur = null, debris = [], rings = [], sparks = [], floats = [];
+let score = 0, combo = 0, runGems = 0, continued = false, time = 0;
+
+function reset() {
+  stack = [{ x: -SIZE / 2, z: -SIZE / 2, w: SIZE, d: SIZE, y: 0, lvl: 0 }];
+  debris = []; rings = []; sparks = []; floats = [];
+  score = 0; combo = 0; runGems = 0; continued = false;
+  camY = camT = BH; zoomT = 1; anchorT = .58;
+  spawn();
+}
+function speed() { return Math.min(7.2, 3.1 + stack.length * .06); }
+function tol() { return .09 + speed() * .018; }
+function spawn() {
+  const top = stack[stack.length - 1], axis = stack.length % 2 ? 'x' : 'z';
+  cur = { x: top.x, z: top.z, w: top.w, d: top.d, y: top.y + BH, lvl: top.lvl + 1, axis, p: -1, dir: 1, base: top[axis] };
+  cur[axis] = top[axis] - RANGE;
+  camT = cur.y;
+}
+
+function addDebris(piece, axis, dir) {
+  debris.push({ ...piece, vy: 1.2, v: dir * (1.2 + Math.random()), axis, alpha: 1 });
+}
+
+function place() {
+  const top = stack[stack.length - 1], a = cur.axis, sz = a === 'x' ? 'w' : 'd';
+  const delta = cur[a] - top[a], size = cur[sz];
+  const [sx, sy] = P(cur.x + cur.w / 2, cur.y + BH, cur.z + cur.d / 2);
+
+  if (Math.abs(delta) <= tol()) {
+    cur[a] = top[a]; combo++;
+    let grew = false;
+    if (combo >= 3 && cur[sz] < SIZE) { const g = Math.min(.3, SIZE - cur[sz]); cur[sz] += g; cur[a] -= g / 2; grew = true; }
+    rings.push({ b: { ...cur }, t: 0 });
+    if (combo >= 4) rings.push({ b: { ...cur }, t: -.12 });
+    burst(sx, sy, 10 + Math.min(combo, 10) * 2);
+    floats.push({ text: combo > 1 ? `${T('perfect')} ×${combo}` : T('perfect'), x: sx, y: sy - 30, t: 0, big: combo >= 5 });
+    sfx.perfect(combo); if (grew) sfx.grow(); buzz(18);
+    gem(1 + (combo >= 5 ? 1 : 0));
+  } else if (Math.abs(delta) >= size) {
+    return gameOver();
+  } else {
+    combo = 0;
+    const cut = { ...cur };
+    if (delta > 0) { cut[a] = top[a] + size; cut[sz] = delta; }
+    else { cut[sz] = -delta; cur[a] = top[a]; }
+    cur[sz] = size - Math.abs(delta);
+    addDebris(cut, a, Math.sign(delta));
+    sfx.place(); buzz(8);
+  }
+  const placed = { x: cur.x, z: cur.z, w: cur.w, d: cur.d, y: cur.y, lvl: cur.lvl, drop: 1 };
+  stack.push(placed); score++;
+  const el = $('#score'); el.textContent = score; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  if (score % 25 === 0) { floats.push({ text: T('amazing'), x: W / 2, y: H * .3, t: 0, big: true }); gem(5); burst(W / 2, H * .3, 40); }
+  spawn();
+}
+
+function gem(n) { runGems += n; save.gems += n; $('#gemHud').textContent = save.gems; if (n > 1) sfx.gem(); }
+
+function burst(x, y, n) {
+  const col = theme.block(cur ? cur.lvl : 0);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = 120 + Math.random() * 260;
+    sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, t: 0, life: .6 + Math.random() * .5,
+                  r: 2 + Math.random() * 3.5, c: Math.random() < .5 ? '#fff' : shade(col, 20) });
+  }
+}
+
+function gameOver() {
+  addDebris(cur, cur.axis, 0); cur = null;
+  state = 'over'; shake = 14; sfx.over(); buzz([40, 40, 90]);
+  const isBest = score > save.best;
+  if (isBest) save.best = score;
+  save.games++; persist();
+  const towerH = stack[stack.length - 1].y + BH;
+  // frame the whole tower in the space above the result card
+  const fit = cardTop => {
+    zoomT = Math.min(1, Math.max(.05, cardTop - 110) / ((towerH + 3) * U));
+    camT = 0; anchorT = (cardTop - 14 - 1.5 * U * zoomT) / H;
+  };
+  fit(H * .45);
+  $('#score').hidden = true;
+  setTimeout(() => {
+    if (state !== 'over') return;
+    $('#finalScore').textContent = score;
+    $('#overBest').textContent = save.best;
+    $('#overGems').textContent = '+' + runGems;
+    $('#newBest').hidden = !isBest;
+    $('#contBtn').disabled = continued || save.gems < 25 || score === 0;
+    show('over');
+    fit($('#over .card').getBoundingClientRect().top);
+  }, 650);
+}
+
+function cont() {
+  if (continued || save.gems < 25) return;
+  save.gems -= 25; continued = true; persist(); $('#gemHud').textContent = save.gems;
+  state = 'play'; zoomT = 1; anchorT = .58; combo = 0;
+  show(null); $('#score').hidden = false;
+  spawn();
+}
+
+/* ---------- screens ---------- */
+function show(id) {
+  ['menu', 'over', 'shop'].forEach(s => { const el = $('#' + s); el.hidden = s !== id; });
+  $('#corner').hidden = id !== 'menu';
+  if (id) { const el = $('#' + id); el.classList.remove('fade-in'); void el.offsetWidth; el.classList.add('fade-in'); }
+}
+function toMenu() {
+  state = 'menu'; reset(); show('menu');
+  $('#score').hidden = true; $('#bestHud').textContent = save.best; $('#gemHud').textContent = save.gems;
+}
+function start() {
+  audio();
+  state = 'play'; show(null); $('#score').hidden = false; $('#score').textContent = '0';
+}
+
+let toastTimer = 0;
+function toast(html) {
+  const el = $('#toast'); el.innerHTML = html; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function daily() {
+  const d = new Date().toISOString().slice(0, 10);
+  if (save.daily === d) return;
+  save.daily = d; save.gems += 20; persist(); $('#gemHud').textContent = save.gems;
+  setTimeout(() => toast(`<svg><use href="#i-gem"/></svg>${T('daily')}`), 600);
+}
+
+/* ---------- shop ---------- */
+function preview(canvas, th) {
+  const r = canvas.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = r.width || 200, h = r.height || 170;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const g = canvas.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const [c1, c2] = th.bg(6), gr = g.createLinearGradient(0, 0, 0, h);
+  gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  const u = w * .13, proj = (x, y, z) => [w / 2 + (x - z) * C30 * u, h * .78 + ((x + z) * S30 - y) * u];
+  const offs = [0, .25, -.2, .15, -.1, .05, 0];
+  for (let i = 0; i < 7; i++) drawBlock(g, proj, th, { x: -1.5 + offs[i], z: -1.5 - offs[i] * .5, w: 3, d: 3, y: i * BH, lvl: i + 3 });
+}
+function renderShop() {
+  const grid = $('#grid'); grid.innerHTML = '';
+  $('#gemShop').textContent = save.gems;
+  THEMES.forEach(th => {
+    const owned = save.owned.includes(th.id), on = theme.id === th.id;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'skin' + (on ? ' on' : '');
+    b.innerHTML = `<canvas></canvas><span class="nm">${th.name}</span><span class="st">${
+      on ? T('equipped') : owned ? T('equip') : `<svg><use href="#i-gem"/></svg>${th.price}`}</span>`;
+    b.onclick = () => {
+      if (!owned) {
+        if (save.gems < th.price) { toast(T('poor')); sfx.click(); return; }
+        save.gems -= th.price; save.owned.push(th.id); sfx.gem(); buzz(20); toast(T('bought'));
+      } else sfx.click();
+      theme = th; save.theme = th.id; persist(); $('#gemHud').textContent = save.gems; renderShop();
+    };
+    grid.appendChild(b);
+    requestAnimationFrame(() => preview(b.querySelector('canvas'), th));
+  });
+}
+
+/* ---------- input ---------- */
+function onTap(e) {
+  if (e.target.closest('button, .shop-screen')) return;
+  e.preventDefault();
+  if (state === 'menu' && $('#shop').hidden) start();
+  else if (state === 'play' && cur) place();
+}
+addEventListener('pointerdown', onTap, { passive: false });
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' && e.code !== 'Enter') return;
+  if (e.target.closest && e.target.closest('button')) return;
+  e.preventDefault();
+  if (state === 'menu' && $('#shop').hidden) start(); else if (state === 'play' && cur) place();
+  else if (state === 'over' && !$('#over').hidden) { sfx.click(); toMenu(); start(); }
+});
+$('#retryBtn').onclick = () => { sfx.click(); toMenu(); start(); };
+$('#homeBtn').onclick = () => { sfx.click(); toMenu(); };
+$('#contBtn').onclick = () => { sfx.gem(); cont(); };
+$('#shopBtn').onclick = () => { audio(); sfx.click(); state = 'shop'; show('shop'); renderShop(); };
+$('#shopBack').onclick = () => { sfx.click(); state = 'menu'; show('menu'); };
+$('#soundBtn').onclick = () => {
+  save.sound = !save.sound; persist(); audio(); sfx.click();
+  $('#soundBtn use').setAttribute('href', save.sound ? '#i-sound' : '#i-mute');
+};
+$('#langBtn').onclick = () => { save.lang = save.lang === 'en' ? 'mk' : 'en'; persist(); applyLang(); sfx.click(); };
+$('#shareBtn').onclick = async () => {
+  const text = T('share').replace('{n}', score);
+  try { if (navigator.share) { await navigator.share({ title: 'Sky Stacker', text }); return; } } catch (e) {}
+  try { await navigator.clipboard.writeText(text); toast(T('copied')); } catch (e) { toast(text); }
+};
+
+/* ---------- ambient bokeh ---------- */
+const bokeh = Array.from({ length: 34 }, () => ({ x: Math.random(), y: Math.random(), r: 2 + Math.random() * 16, par: .2 + Math.random() * .8, spd: 6 + Math.random() * 20, a: .25 + Math.random() * .75 }));
+
+/* ---------- loop ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.033, (now - last) / 1000); last = now; time += dt;
+  update(dt); render();
+  requestAnimationFrame(frame);
+}
+function update(dt) {
+  if (cur && (state === 'play' || state === 'menu')) {
+    const sp = state === 'menu' ? 2.6 : speed();
+    cur.p += cur.dir * sp * dt / RANGE;
+    if (cur.p > 1) { cur.p = 2 - cur.p; cur.dir = -1; }
+    if (cur.p < -1) { cur.p = -2 - cur.p; cur.dir = 1; }
+    cur[cur.axis] = cur.base + cur.p * RANGE;
+  }
+  const k = 1 - Math.pow(.002, dt);
+  camY += (camT - camY) * k * .9; zoom += (zoomT - zoom) * k * .6; anchor += (anchorT - anchor) * k * .6;
+  bgLvl += (stack.length - bgLvl) * k * .3;
+  shake *= Math.pow(.004, dt);
+  for (const s of stack) if (s.drop) s.drop = Math.max(0, s.drop - dt * 9);
+  for (let i = debris.length - 1; i >= 0; i--) {
+    const p = debris[i]; p.vy -= 26 * dt; p.y += p.vy * dt; p[p.axis] += p.v * dt;
+    if (p.y < camY - 7) p.alpha -= dt * 2.5;
+    if (p.alpha <= 0) debris.splice(i, 1);
+  }
+  for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += dt; if (rings[i].t > .6) rings.splice(i, 1); }
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i]; s.t += dt; s.vy += 600 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= .985;
+    if (s.t > s.life) sparks.splice(i, 1);
+  }
+  for (let i = floats.length - 1; i >= 0; i--) { floats[i].t += dt; if (floats[i].t > 1) floats.splice(i, 1); }
+}
+
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const [c1, c2] = theme.bg(bgLvl), gr = ctx.createLinearGradient(0, 0, 0, H);
+  gr.addColorStop(0, c1); gr.addColorStop(1, c2); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = theme.dot;
+  for (const b of bokeh) {
+    const span = H + 60, y = (((b.y * span + camY * U * b.par * .6 - time * b.spd) % span) + span) % span - 30;
+    ctx.globalAlpha = b.a; ctx.beginPath(); ctx.arc(b.x * W, y, b.r * (.6 + b.par * .6), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  if (shake > .2) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+
+  const top = stack[stack.length - 1], sKey = top.x + top.w / 2 + top.z + top.d / 2;
+  const behind = [], front = [];
+  for (const p of debris) (p.x + p.w / 2 + p.z + p.d / 2 < sKey ? behind : front).push(p);
+  behind.forEach(p => drawBlock(ctx, P, theme, p, Math.max(0, p.alpha)));
+
+  drawPedestal();
+  let startI = 0;
+  for (let i = stack.length - 1; i >= 0; i--) { if (P(0, stack[i].y + BH, 0)[1] - 2 * U * zoom > H) { startI = i; break; } }
+  for (let i = startI; i < stack.length; i++) {
+    const s = stack[i];
+    if (s.drop) drawBlock(ctx, P, theme, { ...s, y: s.y + s.drop * s.drop * .35 });
+    else drawBlock(ctx, P, theme, s);
+  }
+
+  for (const r of rings) {
+    if (r.t < 0) continue;
+    const e = r.t * 1.4, b = r.b, y = b.y + BH;
+    ctx.globalAlpha = Math.max(0, 1 - r.t / .6); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3 * zoom;
+    path(ctx, [P(b.x - e, y, b.z - e), P(b.x + b.w + e, y, b.z - e), P(b.x + b.w + e, y, b.z + b.d + e), P(b.x - e, y, b.z + b.d + e)]);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  if (cur) {
+    // soft drop shadow of the moving slab on the tower top
+    const y = top.y + BH;
+    ctx.fillStyle = 'rgba(0,0,0,.10)';
+    path(ctx, [P(cur.x, y, cur.z), P(cur.x + cur.w, y, cur.z), P(cur.x + cur.w, y, cur.z + cur.d), P(cur.x, y, cur.z + cur.d)]);
+    ctx.save(); path(ctx, [P(top.x, y, top.z), P(top.x + top.w, y, top.z), P(top.x + top.w, y, top.z + top.d), P(top.x, y, top.z + top.d)]);
+    ctx.clip(); path(ctx, [P(cur.x, y, cur.z), P(cur.x + cur.w, y, cur.z), P(cur.x + cur.w, y, cur.z + cur.d), P(cur.x, y, cur.z + cur.d)]);
+    ctx.fill(); ctx.restore();
+    drawBlock(ctx, P, theme, cur);
+  }
+  front.forEach(p => drawBlock(ctx, P, theme, p, Math.max(0, p.alpha)));
+
+  ctx.globalCompositeOperation = 'lighter';
+  for (const s of sparks) {
+    const k = 1 - s.t / s.life; ctx.globalAlpha = k; ctx.fillStyle = s.c;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (.4 + k * .6), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const f of floats) {
+    const k = f.t, pop = k < .15 ? .6 + k / .15 * .5 : 1.1 - Math.min(.1, (k - .15));
+    ctx.globalAlpha = Math.max(0, 1 - Math.max(0, k - .55) / .45);
+    ctx.font = `${Math.round((f.big ? 30 : 22) * pop)}px Bungee, Rubik, sans-serif`;
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillText(f.text, f.x, f.y - k * 50 + 3);
+    ctx.fillStyle = '#fff'; ctx.fillText(f.text, f.x, f.y - k * 50);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const vg = ctx.createRadialGradient(W / 2, H * .45, Math.min(W, H) * .35, W / 2, H * .5, Math.max(W, H) * .8);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,0,30,.32)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+}
+
+/* ---------- boot ---------- */
+applyLang();
+$('#soundBtn use').setAttribute('href', save.sound ? '#i-sound' : '#i-mute');
+toMenu();
+daily();
+requestAnimationFrame(frame);
+document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+try {
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/claude/.test(location.hostname)) navigator.serviceWorker.register('sw.js').catch(() => {});
+} catch (e) {}
+})();
+</script>
+<!--BODY-END-->
+</body>
+</html>
