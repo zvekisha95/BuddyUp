@@ -507,6 +507,163 @@ function dot(color, r = 6) {
   s = { c, size }; SPR.set(key, s); return s;
 }
 
+/* ---------- fighter jets, top-down, nose toward -y. Half outlines are mirrored across x = 0 ---------- */
+const JETS = {
+  spark: { // F-16 style lightweight fighter
+    hull: [158, 168, 184], accent: '#3bd6ff', len: 1,
+    fus: [[0, -27], [1.6, -22], [2.9, -14], [3.5, -5], [4.1, 9], [3.6, 17], [2.5, 21]],
+    lerx: [[2.9, -14], [5.5, -4], [4, 0]],
+    wing: [[3.6, -5], [17, 6.5], [17, 9.5], [4.1, 10]],
+    stab: [[3.4, 14], [11.5, 19.5], [11.5, 21.5], [2.8, 20.5]],
+    tails: [[0, 8, 0, 21, 1.3]], noz: [[0, 22, 2.3]], canopy: [0, -15.5, 2.1, 5.8],
+    missiles: [[17.6, -4, 14], [11, 1, 9]], roundel: [10, 5.5],
+  },
+  tempest: { // F-22 style stealth fighter
+    hull: [92, 98, 112], accent: '#a78bff', len: 1,
+    fus: [[0, -27], [2.4, -21], [4.6, -13], [6.2, -4], [6.6, 12], [5.8, 19.5], [1.4, 19.5]],
+    lerx: [[4.6, -13], [7, -6], [6.2, -4]],
+    wing: [[6.2, -5], [19, 8], [18, 12.5], [6.6, 12.5]],
+    stab: [[5.8, 13.5], [13.5, 18], [12.5, 22.5], [5, 21.5]],
+    tails: [[5.2, 5, 7.6, 15, 1.4], [-5.2, 5, -7.6, 15, 1.4]], noz: [[2.6, 21, 2], [-2.6, 21, 2]], canopy: [0, -15, 2.3, 6.2],
+    missiles: [], roundel: [12, 7],
+  },
+  warden: { // A-10 style armored attacker
+    hull: [118, 128, 96], accent: '#3bffb0', len: 1,
+    fus: [[0, -25], [2.4, -21], [3.2, -12], [3.3, 12], [2.6, 19], [1.4, 22]],
+    wing: [[3.2, -4.5], [23, -3.5], [23, 2], [3.2, 3]],
+    stab: [[2, 17], [11, 17], [11, 20.5], [2, 20.5]],
+    tails: [[11, 15, 11, 22.5, 1.8], [-11, 15, -11, 22.5, 1.8]], pods: [[6.4, 9, 2.6, 6.5], [-6.4, 9, 2.6, 6.5]],
+    noz: [[6.4, 15.8, 2], [-6.4, 15.8, 2]], canopy: [0, -14, 2.2, 4.6],
+    missiles: [[13, -6, 9], [18.5, -6, 9], [8.5, -6, 8]], roundel: [15.5, -1],
+  },
+  inferno: { // Su-27 style heavy fighter
+    hull: [170, 72, 62], accent: '#ff9b3b', len: 1,
+    fus: [[0, -29], [1.8, -23], [3.3, -15], [7, -5], [8, 7], [7.4, 19], [3.6, 21]],
+    wing: [[7.5, -4], [19.5, 9], [19.5, 11.5], [8, 10.5]],
+    stab: [[7.2, 14.5], [14.5, 19.5], [14.5, 22], [7, 22]],
+    tails: [[7.4, 5, 7.4, 18, 1.4], [-7.4, 5, -7.4, 18, 1.4]], noz: [[4.3, 22.5, 2.3], [-4.3, 22.5, 2.3]], canopy: [0, -18, 2.1, 5.8],
+    missiles: [[19.9, -1, 12], [14, 3, 11]], roundel: [13, 6],
+  },
+};
+const rgb = (c, k = 1, a = 1) => `rgba(${c.map(v => Math.round(clamp(v * k, 0, 255))).join(',')},${a})`;
+function mirrorPath(g, half) {
+  g.beginPath(); g.moveTo(half[0][0], half[0][1]);
+  for (let i = 1; i < half.length; i++) g.lineTo(half[i][0], half[i][1]);
+  for (let i = half.length - 1; i >= 0; i--) g.lineTo(-half[i][0], half[i][1]);
+  g.closePath();
+}
+function sidePath(g, pts, sx) { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x * sx, y) : g.moveTo(x * sx, y)); g.closePath(); }
+function drawJetBody(g, J, shadow) {
+  const H = J.hull, ink = shadow ? 'rgba(0,0,0,1)' : null;
+  const metal = (x0, x1) => {
+    const gr = g.createLinearGradient(x0, 0, x1, 0);
+    gr.addColorStop(0, rgb(H, .55)); gr.addColorStop(.35, rgb(H, 1)); gr.addColorStop(.5, rgb(H, 1.25)); gr.addColorStop(.65, rgb(H, 1)); gr.addColorStop(1, rgb(H, .55));
+    return gr;
+  };
+  const edge = () => { if (!shadow) { g.strokeStyle = 'rgba(10,12,20,.75)'; g.lineWidth = .45; g.stroke(); } };
+  // horizontal stabilizers and wings, each side gets its own light falloff along the chord
+  for (const sx of [1, -1]) {
+    sidePath(g, J.stab, sx); g.fillStyle = ink || rgb(H, .82); g.fill(); edge();
+    sidePath(g, J.wing, sx);
+    if (shadow) g.fillStyle = ink;
+    else { const w = J.wing, gr = g.createLinearGradient(0, w[0][1] - 2, 0, w[w.length - 1][1] + 2); gr.addColorStop(0, rgb(H, 1.18)); gr.addColorStop(.5, rgb(H, .95)); gr.addColorStop(1, rgb(H, .7)); g.fillStyle = gr; }
+    g.fill(); edge();
+    if (J.lerx) { sidePath(g, J.lerx, sx); g.fillStyle = ink || rgb(H, 1.05); g.fill(); }
+  }
+  for (const [x, y, len] of J.missiles) for (const sx of [1, -1]) {
+    g.fillStyle = shadow ? ink : '#e9edf3'; g.fillRect(x * sx - .7, y, 1.4, len);
+    if (!shadow) { g.fillStyle = '#c0392b'; g.fillRect(x * sx - .7, y, 1.4, 1.6); g.fillStyle = '#7f8a99'; g.fillRect(x * sx - 1.4, y + len - 2.2, 2.8, 1.2); }
+  }
+  if (J.pods) for (const [x, y, r, l] of J.pods) {
+    g.beginPath(); g.ellipse(x, y, r, l, 0, 0, TAU); g.fillStyle = ink || metal(x - r, x + r); g.fill(); edge();
+    if (!shadow) { g.beginPath(); g.ellipse(x, y - l + 1.4, r * .7, 1, 0, 0, TAU); g.fillStyle = '#1b1f27'; g.fill(); }
+  }
+  mirrorPath(g, J.fus); g.fillStyle = ink || metal(-8, 8); g.fill(); edge();
+  for (const [x1, y1, x2, y2, w] of J.tails) {
+    g.lineCap = 'round'; g.lineWidth = w; g.strokeStyle = shadow ? ink : rgb(H, .62);
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    if (!shadow) { g.lineWidth = w * .35; g.strokeStyle = rgb(H, 1.2); g.beginPath(); g.moveTo(x1 - w * .2, y1 + 1); g.lineTo(x2 - w * .2, y2 - 1); g.stroke(); }
+  }
+  if (shadow) return;
+  // panel lines
+  g.strokeStyle = 'rgba(10,12,20,.28)'; g.lineWidth = .3;
+  g.beginPath();
+  for (const yy of [-8, 0, 8, 15]) { const hw = halfWidth(J.fus, yy); g.moveTo(-hw, yy); g.lineTo(hw, yy); }
+  g.moveTo(0, -9); g.lineTo(0, 18);
+  for (const sx of [1, -1]) {
+    const w = J.wing, a = w[0], b = w[1];
+    for (const f of [.35, .7]) { g.moveTo(a[0] * sx, a[1] + (w[3][1] - a[1]) * f); g.lineTo((a[0] + (b[0] - a[0]) * .85) * sx, a[1] + (b[1] - a[1]) * .85 + (w[2][1] - b[1]) * f); }
+  }
+  g.stroke();
+  // nozzles
+  for (const [x, y, r] of J.noz) {
+    g.beginPath(); g.ellipse(x, y, r, r * .55, 0, 0, TAU); g.fillStyle = '#20232b'; g.fill();
+    g.strokeStyle = '#5c616d'; g.lineWidth = .5; g.stroke();
+  }
+  // national marking and accent stripe in the ship's color
+  const [rx, ry] = J.roundel;
+  for (const sx of [1, -1]) {
+    g.beginPath(); g.arc(rx * sx, ry, 1.9, 0, TAU); g.fillStyle = J.accent; g.fill();
+    g.beginPath(); g.arc(rx * sx, ry, .8, 0, TAU); g.fillStyle = '#fff'; g.fill();
+  }
+  g.fillStyle = J.accent; g.globalAlpha = .9;
+  const ny = J.fus[0][1]; g.beginPath(); g.moveTo(0, ny + 1.5); g.lineTo(1.2, ny + 5.5); g.lineTo(-1.2, ny + 5.5); g.closePath(); g.fill();
+  g.globalAlpha = 1;
+  // bubble canopy
+  const [cx, cy, cw, ch] = J.canopy;
+  g.beginPath(); g.ellipse(cx, cy, cw, ch, 0, 0, TAU);
+  const cg = g.createLinearGradient(-cw, cy - ch, cw, cy + ch);
+  cg.addColorStop(0, '#bfefff'); cg.addColorStop(.35, '#3a8fb8'); cg.addColorStop(1, '#0b2236');
+  g.fillStyle = cg; g.fill(); g.strokeStyle = 'rgba(20,24,30,.9)'; g.lineWidth = .5; g.stroke();
+  g.beginPath(); g.ellipse(cx - cw * .35, cy - ch * .3, cw * .25, ch * .45, -.2, 0, TAU); g.fillStyle = 'rgba(255,255,255,.55)'; g.fill();
+  // navigation lights: red port (left), green starboard (right)
+  const wt = J.wing[1];
+  g.fillStyle = '#ff2b2b'; g.beginPath(); g.arc(-wt[0], wt[1] + 1, .8, 0, TAU); g.fill();
+  g.fillStyle = '#2bff6a'; g.beginPath(); g.arc(wt[0], wt[1] + 1, .8, 0, TAU); g.fill();
+}
+function halfWidth(half, y) {
+  for (let i = 0; i < half.length - 1; i++) {
+    const [x0, y0] = half[i], [x1, y1] = half[i + 1];
+    if (y >= y0 && y <= y1) return x0 + (x1 - x0) * (y - y0) / (y1 - y0 || 1);
+  }
+  return 0;
+}
+function jetSprite(id, shadow = false) {
+  const key = 'jet' + id + shadow; let s = SPR.get(key); if (s) return s;
+  const J = JETS[id] || JETS.spark, size = 60, sc = 4, c = document.createElement('canvas');
+  c.width = c.height = size * sc;
+  const g = c.getContext('2d'); g.scale(sc, sc); g.translate(size / 2, size / 2); g.lineJoin = 'round';
+  if (shadow) { try { g.filter = 'blur(1.5px)'; } catch (e) {} }
+  drawJetBody(g, J, shadow);
+  s = { c, size }; SPR.set(key, s); return s;
+}
+const JET_SCALE = 1.1;
+/* draws shadow, afterburners, airframe and strobes; bank squeezes the wings to fake a roll */
+function drawJet(id, x, y, ang, sc = JET_SCALE, bank = 0, thrust = 1, t = 0) {
+  const J = JETS[id] || JETS.spark, rot = ang + Math.PI / 2, co = Math.cos(rot), si = Math.sin(rot), sx = 1 - Math.abs(bank) * .28;
+  const put = (s, px, py) => {
+    ctx.setTransform(co * sx * M * sc, si * sx * M * sc, -si * M * sc, co * M * sc, OX + px * M, OY + py * M);
+    ctx.drawImage(s.c, -s.size / 2, -s.size / 2, s.size, s.size);
+  };
+  ctx.globalAlpha = .45; put(jetSprite(id, true), x + 7, y + 11); ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [nx, ny, nr] of J.noz) {
+    const lx = nx * sx, wx = x + (lx * co - ny * si) * sc, wy = y + (lx * si + ny * co) * sc;
+    const bx = -Math.cos(ang), by = -Math.sin(ang), flick = .8 + Math.random() * .4, L = (4 + thrust * 9) * flick * sc;
+    drawSpr(dot('#ff8a2b', nr * 1.6), wx + bx * L * .9, wy + by * L * .9, 0, .9 * sc);
+    drawSpr(dot('#ffd23b', nr * 1.2), wx + bx * L * .45, wy + by * L * .45, 0, .9 * sc);
+    drawSpr(dot('#9fe8ff', nr * .9), wx + bx * 1.5, wy + by * 1.5, 0, sc);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  put(jetSprite(id), x, y);
+  if (Math.sin(t * 7) > .93) {
+    ctx.globalCompositeOperation = 'lighter';
+    const wt = J.wing[1];
+    for (const s of [1, -1]) { const lx = wt[0] * s * sx, ly = wt[1] + 1; drawSpr(dot('#ffffff', 2.2), x + (lx * co - ly * si) * sc, y + (lx * si + ly * co) * sc); }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+}
+
 /* world transform helpers */
 const cam = { x: 0, y: 0 };
 let shake = 0, shx = 0, shy = 0;
@@ -541,7 +698,7 @@ function ship() { return SHIPS.find(s => s.id === save.ship) || SHIPS[0]; }
 function newRun() {
   G = {
     t: 0, kills: 0, level: 1, xp: 0, need: xpNeed(1), pending: 0, chest: 0, coins: 0, banked: 0,
-    p: { x: 0, y: 0, vx: 0, vy: 0, r: 13, hp: 100, maxHp: 100, inv: 0, ang: -Math.PI / 2 },
+    p: { x: 0, y: 0, vx: 0, vy: 0, r: 13, hp: 100, maxHp: 100, inv: 0, ang: -Math.PI / 2, bank: 0 },
     w: {}, pass: {}, tm: {}, en: [], pb: [], eb: [], gems: [], items: [], parts: [], rings: [], bolts: [], nums: [], ms: [],
     spawnAcc: 0, nextBoss: 150, warned: false, swarms: {}, boss: null, bossN: 0,
     combo: 0, comboT: 0, revives: mlv('revive'), paid: false, orbA: 0, rerolls: 2, id: 0, hurtT: 0,
@@ -782,11 +939,13 @@ function update(dt) {
   p.vx += (ix * s.spd - p.vx) * acc; p.vy += (iy * s.spd - p.vy) * acc;
   p.x += p.vx * dt; p.y += p.vy * dt;
   const sp = Math.hypot(p.vx, p.vy);
+  p.bank *= Math.pow(.05, dt);
   if (sp > 20) {
     const ta = Math.atan2(p.vy, p.vx); let da = ta - p.ang; da = Math.atan2(Math.sin(da), Math.cos(da)); p.ang += da * Math.min(1, dt * 14);
-    if (Math.random() < .8 && G.parts.length < 700) {
-      const bx = p.x - Math.cos(p.ang) * 12, by = p.y - Math.sin(p.ang) * 12;
-      G.parts.push({ x: bx + rnd(-3, 3), y: by + rnd(-3, 3), vx: -Math.cos(p.ang) * 60 + rnd(-20, 20), vy: -Math.sin(p.ang) * 60 + rnd(-20, 20), t: 0, life: .35, s: .7, c: ship().color });
+    p.bank += (clamp(da * 2.5, -1, 1) - p.bank) * Math.min(1, dt * 8);
+    if (Math.random() < .7 && G.parts.length < 700) {
+      const bx = p.x - Math.cos(p.ang) * 22, by = p.y - Math.sin(p.ang) * 22;
+      G.parts.push({ x: bx + rnd(-2, 2), y: by + rnd(-2, 2), vx: -Math.cos(p.ang) * 70 + rnd(-15, 15), vy: -Math.sin(p.ang) * 70 + rnd(-15, 15), t: 0, life: .3, s: .55, c: ship().color });
     }
   }
   p.inv -= dt; G.hurtT -= dt;
@@ -1055,8 +1214,8 @@ function renderShop(kind) {
         save.ship = sh.id; persist(); renderShop(kind);
       };
       row.appendChild(b); list.appendChild(row);
-      const g = row.querySelector('canvas').getContext('2d'), sp = sprite('ship', 13, sh.color);
-      g.drawImage(sp.c, 58 - sp.c.width * .9 / 2, 58 - sp.c.height * .9 / 2, sp.c.width * .9, sp.c.height * .9);
+      const g = row.querySelector('canvas').getContext('2d'), sp = jetSprite(sh.id), sh2 = jetSprite(sh.id, true);
+      g.globalAlpha = .4; g.drawImage(sh2.c, 6, 9, 110, 110); g.globalAlpha = 1; g.drawImage(sp.c, 1, 1, 114, 114);
     });
   } else {
     META.forEach(m => {
@@ -1217,11 +1376,11 @@ function render(dt) {
 
   if (state !== 'dying' && state !== 'over') {
     const blink = p.inv > 0 && Math.floor(now * 20) % 2 === 0;
-    if (!blink) drawSpr(sprite('ship', 13, ship().color), p.x, p.y, p.ang + Math.PI / 2);
+    if (!blink) drawJet(ship().id, p.x, p.y, p.ang, JET_SCALE, p.bank, Math.min(1, Math.hypot(p.vx, p.vy) / G.s.spd), now);
     worldTf();
     const bw = 34, hpk = clamp(p.hp / p.maxHp, 0, 1);
-    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(p.x - bw / 2, p.y + 22, bw, 4);
-    ctx.fillStyle = hpk < .3 ? '#ff3b6b' : '#3bffb0'; ctx.fillRect(p.x - bw / 2, p.y + 22, bw * hpk, 4);
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(p.x - bw / 2, p.y + 34, bw, 4);
+    ctx.fillStyle = hpk < .3 ? '#ff3b6b' : '#3bffb0'; ctx.fillRect(p.x - bw / 2, p.y + 34, bw * hpk, 4);
   }
 
   ctx.globalCompositeOperation = 'lighter';
@@ -1270,9 +1429,8 @@ function renderMenu(dt) {
     drawSpr(sprite(e.shape, e.r, e.color), x, y, e.face ? Math.atan2(cy - y, cx - x) + Math.PI / 2 : menuT * (e.spin || 0));
   }
   ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 6; i++) { const a = menuT * 2 + i; drawSpr(dot('#3bd6ff', 4), cx + Math.cos(a) * 40 * sc, cy + Math.sin(a) * 40 * sc); }
   ctx.globalCompositeOperation = 'source-over';
-  drawSpr(sprite('ship', 13, ship().color), cx, cy, Math.sin(menuT) * .15, 1.6);
+  worldTf(); drawJet(ship().id, cx, cy, -Math.PI / 2 + Math.sin(menuT) * .15, 2.1, Math.cos(menuT) * .5, .8, menuT);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .3, W / 2, H / 2, Math.max(W, H) * .75);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,10,.55)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
