@@ -312,7 +312,7 @@ const STR = {
     bestTime: 'Best time', bestKills: 'Best kills', hint: 'Drag anywhere to fly. Your weapons fire on their own.',
     levelUp: 'LEVEL UP!', chest: 'TREASURE!', choose: 'Choose an upgrade', reroll: 'Reroll', paused: 'PAUSED', resume: 'RESUME', quit: 'QUIT RUN',
     over: 'DESTROYED', record: 'NEW RECORD!', time: 'Time', kills: 'Kills', level: 'Level', coins: 'Coins', revive: 'REVIVE',
-    again: 'PLAY AGAIN', home: 'MENU', boss: 'MOTHERSHIP', bossIn: 'BOSS INCOMING', bossDown: 'BOSS DESTROYED', swarm: 'SWARM!',
+    again: 'PLAY AGAIN', home: 'MENU', boss: 'STEALTH BOMBER', bossIn: 'BOSS INCOMING', bossDown: 'BOSS DESTROYED', swarm: 'SWARM!',
     streak: 'STREAK', phoenix: 'PHOENIX!', newW: 'NEW', max: 'MAX', buy: 'BUY', use: 'SELECT', inUse: 'SELECTED', poor: 'Not enough coins',
     bought: 'Unlocked!', heal: 'Repair Kit', healD: 'Restore 50 HP', gold: 'Coin Cache', goldD: '+25 coins', lv: 'Lv',
   },
@@ -321,7 +321,7 @@ const STR = {
     bestTime: 'Најдобро време', bestKills: 'Најмногу убиства', hint: 'Влечи со прстот за летање. Оружјата пукаат сами.',
     levelUp: 'НОВО НИВО!', chest: 'СКРИВНИЦА!', choose: 'Избери надградба', reroll: 'Нови карти', paused: 'ПАУЗА', resume: 'ПРОДОЛЖИ', quit: 'ИЗЛЕЗ',
     over: 'УНИШТЕН', record: 'НОВ РЕКОРД!', time: 'Време', kills: 'Убиства', level: 'Ниво', coins: 'Монети', revive: 'ОЖИВЕЈ',
-    again: 'ИГРАЈ ПАК', home: 'МЕНИ', boss: 'МАТИЧЕН БРОД', bossIn: 'ДОАЃА БОС', bossDown: 'БОСОТ Е УНИШТЕН', swarm: 'РОЈ!',
+    again: 'ИГРАЈ ПАК', home: 'МЕНИ', boss: 'СТЕЛТ БОМБАРДЕР', bossIn: 'ДОАЃА БОС', bossDown: 'БОСОТ Е УНИШТЕН', swarm: 'РОЈ!',
     streak: 'НИЗА', phoenix: 'ФЕНИКС!', newW: 'НОВО', max: 'МАКС', buy: 'КУПИ', use: 'ИЗБЕРИ', inUse: 'ИЗБРАН', poor: 'Немаш доволно монети',
     bought: 'Отклучено!', heal: 'Поправка', healD: 'Враќа 50 живот', gold: 'Ковчеже', goldD: '+25 монети', lv: 'Ниво',
   }
@@ -553,8 +553,9 @@ function mirrorPath(g, half) {
   g.closePath();
 }
 function sidePath(g, pts, sx) { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x * sx, y) : g.moveTo(x * sx, y)); g.closePath(); }
-function drawJetBody(g, J, shadow) {
-  const H = J.hull, ink = shadow ? 'rgba(0,0,0,1)' : null;
+/* sil: when a color is given, draws only the silhouette in that color (shadows, glows, hit flash) */
+function drawJetBody(g, J, sil) {
+  const H = J.hull, ink = sil === true ? 'rgba(0,0,0,1)' : sil || null, shadow = !!sil;
   const metal = (x0, x1) => {
     const gr = g.createLinearGradient(x0, 0, x1, 0);
     gr.addColorStop(0, rgb(H, .55)); gr.addColorStop(.35, rgb(H, 1)); gr.addColorStop(.5, rgb(H, 1.25)); gr.addColorStop(.65, rgb(H, 1)); gr.addColorStop(1, rgb(H, .55));
@@ -563,23 +564,26 @@ function drawJetBody(g, J, shadow) {
   const edge = () => { if (!shadow) { g.strokeStyle = 'rgba(10,12,20,.75)'; g.lineWidth = .45; g.stroke(); } };
   // horizontal stabilizers and wings, each side gets its own light falloff along the chord
   for (const sx of [1, -1]) {
-    sidePath(g, J.stab, sx); g.fillStyle = ink || rgb(H, .82); g.fill(); edge();
-    sidePath(g, J.wing, sx);
-    if (shadow) g.fillStyle = ink;
-    else { const w = J.wing, gr = g.createLinearGradient(0, w[0][1] - 2, 0, w[w.length - 1][1] + 2); gr.addColorStop(0, rgb(H, 1.18)); gr.addColorStop(.5, rgb(H, .95)); gr.addColorStop(1, rgb(H, .7)); g.fillStyle = gr; }
-    g.fill(); edge();
+    if (J.stab) { sidePath(g, J.stab, sx); g.fillStyle = ink || rgb(H, .82); g.fill(); edge(); }
+    if (J.wing) {
+      sidePath(g, J.wing, sx);
+      if (shadow) g.fillStyle = ink;
+      else { const w = J.wing, gr = g.createLinearGradient(0, w[0][1] - 2, 0, w[w.length - 1][1] + 2); gr.addColorStop(0, rgb(H, 1.18)); gr.addColorStop(.5, rgb(H, .95)); gr.addColorStop(1, rgb(H, .7)); g.fillStyle = gr; }
+      g.fill(); edge();
+    }
     if (J.lerx) { sidePath(g, J.lerx, sx); g.fillStyle = ink || rgb(H, 1.05); g.fill(); }
   }
-  for (const [x, y, len] of J.missiles) for (const sx of [1, -1]) {
-    g.fillStyle = shadow ? ink : '#e9edf3'; g.fillRect(x * sx - .7, y, 1.4, len);
-    if (!shadow) { g.fillStyle = '#c0392b'; g.fillRect(x * sx - .7, y, 1.4, 1.6); g.fillStyle = '#7f8a99'; g.fillRect(x * sx - 1.4, y + len - 2.2, 2.8, 1.2); }
+  for (const [x, y, len, wide] of J.missiles || []) for (const sx of [1, -1]) {
+    const hw = wide ? 1.4 : .7;
+    g.fillStyle = shadow ? ink : wide ? '#4a4f45' : '#e9edf3'; g.fillRect(x * sx - hw, y, hw * 2, len);
+    if (!shadow) { g.fillStyle = wide ? '#22251f' : '#c0392b'; g.fillRect(x * sx - hw, y, hw * 2, 1.6); g.fillStyle = '#7f8a99'; g.fillRect(x * sx - hw - .7, y + len - 2.2, hw * 2 + 1.4, 1.2); }
   }
   if (J.pods) for (const [x, y, r, l] of J.pods) {
     g.beginPath(); g.ellipse(x, y, r, l, 0, 0, TAU); g.fillStyle = ink || metal(x - r, x + r); g.fill(); edge();
     if (!shadow) { g.beginPath(); g.ellipse(x, y - l + 1.4, r * .7, 1, 0, 0, TAU); g.fillStyle = '#1b1f27'; g.fill(); }
   }
-  mirrorPath(g, J.fus); g.fillStyle = ink || metal(-8, 8); g.fill(); edge();
-  for (const [x1, y1, x2, y2, w] of J.tails) {
+  mirrorPath(g, J.fus); g.fillStyle = ink || metal(-(J.fw || 8), J.fw || 8); g.fill(); edge();
+  for (const [x1, y1, x2, y2, w] of J.tails || []) {
     g.lineCap = 'round'; g.lineWidth = w; g.strokeStyle = shadow ? ink : rgb(H, .62);
     g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
     if (!shadow) { g.lineWidth = w * .35; g.strokeStyle = rgb(H, 1.2); g.beginPath(); g.moveTo(x1 - w * .2, y1 + 1); g.lineTo(x2 - w * .2, y2 - 1); g.stroke(); }
@@ -588,38 +592,50 @@ function drawJetBody(g, J, shadow) {
   // panel lines
   g.strokeStyle = 'rgba(10,12,20,.28)'; g.lineWidth = .3;
   g.beginPath();
-  for (const yy of [-8, 0, 8, 15]) { const hw = halfWidth(J.fus, yy); g.moveTo(-hw, yy); g.lineTo(hw, yy); }
-  g.moveTo(0, -9); g.lineTo(0, 18);
-  for (const sx of [1, -1]) {
+  for (const yy of J.panels || [-8, 0, 8, 15]) { const hw = halfWidth(J.fus, yy); g.moveTo(-hw, yy); g.lineTo(hw, yy); }
+  g.moveTo(0, J.fus[0][1] + 15); g.lineTo(0, J.fus[J.fus.length - 1][1] - 3);
+  if (J.wing && J.wing.length >= 4) for (const sx of [1, -1]) {
     const w = J.wing, a = w[0], b = w[1];
     for (const f of [.35, .7]) { g.moveTo(a[0] * sx, a[1] + (w[3][1] - a[1]) * f); g.lineTo((a[0] + (b[0] - a[0]) * .85) * sx, a[1] + (b[1] - a[1]) * .85 + (w[2][1] - b[1]) * f); }
   }
   g.stroke();
-  // nozzles
-  for (const [x, y, r] of J.noz) {
+  for (const [x, y, r] of J.noz || []) {
     g.beginPath(); g.ellipse(x, y, r, r * .55, 0, 0, TAU); g.fillStyle = '#20232b'; g.fill();
     g.strokeStyle = '#5c616d'; g.lineWidth = .5; g.stroke();
   }
-  // national marking and accent stripe in the ship's color
-  const [rx, ry] = J.roundel;
-  for (const sx of [1, -1]) {
-    g.beginPath(); g.arc(rx * sx, ry, 1.9, 0, TAU); g.fillStyle = J.accent; g.fill();
-    g.beginPath(); g.arc(rx * sx, ry, .8, 0, TAU); g.fillStyle = '#fff'; g.fill();
+  // national marking: roundel for the player's jets, red star for hostiles
+  if (J.roundel) {
+    const [rx, ry] = J.roundel;
+    for (const sx of [1, -1]) {
+      if (J.star) {
+        g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? .9 : 2.1; g.lineTo(rx * sx + Math.cos(a) * rr, ry + Math.sin(a) * rr); }
+        g.closePath(); g.fillStyle = '#e8322b'; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = .35; g.stroke();
+      } else {
+        g.beginPath(); g.arc(rx * sx, ry, 1.9, 0, TAU); g.fillStyle = J.accent; g.fill();
+        g.beginPath(); g.arc(rx * sx, ry, .8, 0, TAU); g.fillStyle = '#fff'; g.fill();
+      }
+    }
   }
-  g.fillStyle = J.accent; g.globalAlpha = .9;
-  const ny = J.fus[0][1]; g.beginPath(); g.moveTo(0, ny + 1.5); g.lineTo(1.2, ny + 5.5); g.lineTo(-1.2, ny + 5.5); g.closePath(); g.fill();
-  g.globalAlpha = 1;
-  // bubble canopy
-  const [cx, cy, cw, ch] = J.canopy;
-  g.beginPath(); g.ellipse(cx, cy, cw, ch, 0, 0, TAU);
-  const cg = g.createLinearGradient(-cw, cy - ch, cw, cy + ch);
-  cg.addColorStop(0, '#bfefff'); cg.addColorStop(.35, '#3a8fb8'); cg.addColorStop(1, '#0b2236');
-  g.fillStyle = cg; g.fill(); g.strokeStyle = 'rgba(20,24,30,.9)'; g.lineWidth = .5; g.stroke();
-  g.beginPath(); g.ellipse(cx - cw * .35, cy - ch * .3, cw * .25, ch * .45, -.2, 0, TAU); g.fillStyle = 'rgba(255,255,255,.55)'; g.fill();
+  if (J.accent) {
+    g.fillStyle = J.accent; g.globalAlpha = .9;
+    const ny = J.fus[0][1]; g.beginPath(); g.moveTo(0, ny + 1.5); g.lineTo(1.2, ny + 5.5); g.lineTo(-1.2, ny + 5.5); g.closePath(); g.fill();
+    g.globalAlpha = 1;
+  }
+  if (J.canopy) {
+    const [cx, cy, cw, ch] = J.canopy;
+    g.beginPath(); g.ellipse(cx, cy, cw, ch, 0, 0, TAU);
+    const cg = g.createLinearGradient(-cw, cy - ch, cw, cy + ch);
+    cg.addColorStop(0, '#bfefff'); cg.addColorStop(.35, '#3a8fb8'); cg.addColorStop(1, '#0b2236');
+    g.fillStyle = cg; g.fill(); g.strokeStyle = 'rgba(20,24,30,.9)'; g.lineWidth = .5; g.stroke();
+    g.beginPath(); g.ellipse(cx - cw * .35, cy - ch * .3, cw * .25, ch * .45, -.2, 0, TAU); g.fillStyle = 'rgba(255,255,255,.55)'; g.fill();
+  }
+  if (J.sensor) { const [x, y, r] = J.sensor; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fillStyle = '#15181d'; g.fill(); g.beginPath(); g.arc(x - r * .3, y - r * .3, r * .35, 0, TAU); g.fillStyle = '#ff5544'; g.fill(); }
   // navigation lights: red port (left), green starboard (right)
-  const wt = J.wing[1];
-  g.fillStyle = '#ff2b2b'; g.beginPath(); g.arc(-wt[0], wt[1] + 1, .8, 0, TAU); g.fill();
-  g.fillStyle = '#2bff6a'; g.beginPath(); g.arc(wt[0], wt[1] + 1, .8, 0, TAU); g.fill();
+  if (J.wing) {
+    const wt = J.wing[1];
+    g.fillStyle = '#ff2b2b'; g.beginPath(); g.arc(-wt[0], wt[1] + 1, .8, 0, TAU); g.fill();
+    g.fillStyle = '#2bff6a'; g.beginPath(); g.arc(wt[0], wt[1] + 1, .8, 0, TAU); g.fill();
+  }
 }
 function halfWidth(half, y) {
   for (let i = 0; i < half.length - 1; i++) {
@@ -664,6 +680,97 @@ function drawJet(id, x, y, ang, sc = JET_SCALE, bank = 0, thrust = 1, t = 0) {
   }
 }
 
+/* ---------- hostile aircraft. sc = world units per model unit, glow keeps them readable on the dark arena ---------- */
+const EM = {
+  grunt: { sc: .72, ext: 30, J: { // MiG-21 style fighter
+    hull: [112, 120, 104], star: true, fw: 4,
+    fus: [[0, -25], [1.6, -21], [2.5, -12], [2.7, 10], [2.1, 18], [1.5, 20]],
+    wing: [[2.5, -4], [13, 10], [13, 12.5], [2.7, 12.5]], stab: [[2.3, 15], [8, 19], [8, 21], [2, 20]],
+    tails: [[0, 9, 0, 20, 1.2]], noz: [[0, 20.5, 1.7]], canopy: [0, -13, 1.6, 4.4], missiles: [[9.5, 3, 7]], roundel: [8.5, 9], panels: [-6, 4, 14] } },
+  dart: { sc: .62, ext: 26, J: { // jet-powered kamikaze drone
+    hull: [196, 166, 104], star: true, fw: 3,
+    fus: [[0, -20], [1.9, -14], [2.5, 0], [2.3, 12], [1.2, 16]],
+    wing: [[2.5, -2], [15, 8], [15, 10], [2.4, 8]],
+    tails: [[2.6, 10, 6.5, 16, 1.1], [-2.6, 10, -6.5, 16, 1.1]], noz: [[0, 16.3, 1.3]], sensor: [0, -15, 1.3], roundel: [9.5, 6], panels: [-6, 6] } },
+  brute: { sc: 1.15, ext: 30, shadow: true, rotor: [0, -3, 17], tailRotor: [1.4, 24.5, 3.2], J: { // attack helicopter
+    hull: [92, 106, 82], star: true, fw: 3.5,
+    fus: [[0, -16], [2.2, -13], [3, -6], [3, 4], [1.6, 8], [.9, 22], [.9, 26]],
+    wing: [[3, -3], [8.5, -2.5], [8.5, 1], [3, 1.2]], stab: [[.9, 20.5], [4.8, 20.5], [4.8, 22.6], [.9, 22.6]],
+    missiles: [[7, -5, 6, true], [4.6, -4, 4]], canopy: [0, -10.5, 1.9, 4.6], roundel: [1.8, 13], panels: [-6, 2] } },
+  spitter: { sc: .7, ext: 28, shadow: true, props: [[0, 15.2, 3.2]], J: { // MQ-9 style armed drone
+    hull: [160, 165, 170], star: true, fw: 3,
+    fus: [[0, -16], [2.5, -13], [2.8, -6], [2.2, 8], [1.2, 14.5]],
+    wing: [[2.4, -3], [22, -1.6], [22, .8], [2.4, 1.6]],
+    tails: [[1, 10, 7, 15.5, 1.1], [-1, 10, -7, 15.5, 1.1]], sensor: [0, -12.5, 1.7], missiles: [[9, -2.5, 5.5], [14, -2.5, 5.5]], roundel: [18, -.4], panels: [-4, 4] } },
+  splitter: { sc: .8, ext: 30, shadow: true, props: [[9.5, -10.6, 3.4], [-9.5, -10.6, 3.4], [16, -10.1, 3.4], [-16, -10.1, 3.4]], J: { // C-130 style drone carrier
+    hull: [126, 134, 114], star: true, fw: 5,
+    fus: [[0, -22], [3, -19], [4.3, -12], [4.4, 10], [3, 18], [1, 24]],
+    wing: [[4.2, -6], [24, -4.6], [24, -.2], [4.2, 1]], stab: [[1.5, 18], [10, 18.5], [10, 21.5], [1.2, 22]],
+    pods: [[9.5, -6.8, 1.5, 3.4], [-9.5, -6.8, 1.5, 3.4], [16, -6.3, 1.5, 3.4], [-16, -6.3, 1.5, 3.4]],
+    tails: [[0, 14, 0, 24, 1.4]], canopy: [0, -18.4, 2.6, 1.7], roundel: [20, -2.5], panels: [-12, -2, 6, 14] } },
+  mini: { sc: 1, ext: 12, quad: true, J: { hull: [74, 80, 88] } },
+  boss: { sc: 1.6, ext: 42, shadow: true, J: { // B-2 style stealth bomber
+    hull: [54, 58, 70], star: true, fw: 30,
+    fus: [[0, -24], [6, -17.5], [14, -8], [38, 8], [36.5, 10.5], [30, 8], [24, 13], [18, 8], [12, 13], [6, 8.5], [0, 12]],
+    noz: [[8, 9.5, 1.6], [-8, 9.5, 1.6], [14.5, 9.5, 1.6], [-14.5, 9.5, 1.6]], canopy: [0, -16, 2.6, 1.8], roundel: [24, 4], panels: [-14, -4, 4] } },
+};
+function drawQuad(g, M, sil) {
+  const H = M.J.hull, ink = sil || null;
+  g.lineCap = 'round';
+  g.strokeStyle = ink || rgb(H, .8); g.lineWidth = 1.6;
+  g.beginPath(); g.moveTo(-6, -6); g.lineTo(6, 6); g.moveTo(6, -6); g.lineTo(-6, 6); g.stroke();
+  for (const [x, y] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) {
+    g.beginPath(); g.arc(x, y, 3.8, 0, TAU);
+    if (ink) { g.strokeStyle = ink; g.lineWidth = .8; g.stroke(); } else { g.fillStyle = 'rgba(200,210,220,.16)'; g.fill(); g.strokeStyle = 'rgba(220,230,240,.5)'; g.lineWidth = .4; g.stroke(); }
+  }
+  g.beginPath(); g.roundRect ? g.roundRect(-3, -3.6, 6, 7.2, 1.6) : g.rect(-3, -3.6, 6, 7.2);
+  g.fillStyle = ink || rgb(H, 1.1); g.fill();
+  if (!ink) { g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = .4; g.stroke(); g.beginPath(); g.arc(0, -2.4, .9, 0, TAU); g.fillStyle = '#ff3b3b'; g.fill(); }
+}
+function enemySprite(type, flash = false, shadow = false) {
+  const key = 'en' + type + flash + shadow; let s = SPR.get(key); if (s) return s;
+  const M = EM[type], d = ETYPES[type], R = clamp(3.2 * M.sc, 2.6, 5), size = M.ext * 2 + 10, c = document.createElement('canvas');
+  c.width = c.height = Math.ceil(size * R);
+  const g = c.getContext('2d'); g.scale(R, R); g.translate(size / 2, size / 2); g.lineJoin = 'round';
+  const body = sil => M.quad ? drawQuad(g, M, sil) : drawJetBody(g, M.J, sil);
+  if (shadow) { try { g.filter = 'blur(1.5px)'; } catch (e) {} body('rgba(0,0,0,1)'); }
+  else {
+    g.shadowColor = d.color; g.shadowBlur = 7 * R; body(d.color + 'cc');
+    g.shadowBlur = 0;
+    body(flash ? '#ffffff' : null);
+  }
+  s = { c, size: size * M.sc }; SPR.set(key, s); return s;
+}
+function drawEnemy(type, x, y, rot, flash, t) {
+  const M = EM[type], sc = M.sc, co = Math.cos(rot), si = Math.sin(rot);
+  const wpt = (lx, ly) => [x + (lx * co - ly * si) * sc, y + (lx * si + ly * co) * sc];
+  if (M.shadow) { ctx.globalAlpha = .32; drawSpr(enemySprite(type, false, true), x + 5 * sc, y + 9 * sc, rot); ctx.globalAlpha = 1; }
+  if (M.J.noz && type === 'boss') {
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [nx, ny, nr] of M.J.noz) { const [a, b] = wpt(nx, ny + 3), [c, d] = wpt(nx, ny + 7); drawSpr(dot('#ffd23b', nr * 1.6), a, b); drawSpr(dot('#ff8a2b', nr * 2), c, d); }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  drawSpr(enemySprite(type, flash), x, y, rot);
+  if (M.rotor || M.props) {
+    worldTf(); ctx.lineCap = 'round';
+    for (const [px, py, r] of M.props || []) {
+      const [cx, cy] = wpt(px, py);
+      ctx.fillStyle = 'rgba(210,220,230,.14)'; ctx.beginPath(); ctx.arc(cx, cy, r * sc, 0, TAU); ctx.fill();
+      const a = t * 40 + px; ctx.strokeStyle = 'rgba(30,32,36,.5)'; ctx.lineWidth = .9 * sc;
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r * sc, cy + Math.sin(a) * r * sc); ctx.lineTo(cx - Math.cos(a) * r * sc, cy - Math.sin(a) * r * sc); ctx.stroke();
+    }
+    if (M.rotor) {
+      const [hx, hy, R] = M.rotor, [cx, cy] = wpt(hx, hy), rr = R * sc;
+      ctx.fillStyle = 'rgba(210,220,230,.10)'; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(25,28,24,.75)'; ctx.lineWidth = 1.5 * sc;
+      for (let k = 0; k < 4; k++) { const a = t * 22 + k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); ctx.stroke(); }
+      ctx.fillStyle = '#2a2e26'; ctx.beginPath(); ctx.arc(cx, cy, 1.4 * sc, 0, TAU); ctx.fill();
+      const [tx, ty, tr] = M.tailRotor, [ux, uy] = wpt(tx, ty);
+      ctx.fillStyle = 'rgba(210,220,230,.18)'; ctx.beginPath(); ctx.arc(ux, uy, tr * sc, 0, TAU); ctx.fill();
+    }
+  }
+}
+
 /* world transform helpers */
 const cam = { x: 0, y: 0 };
 let shake = 0, shx = 0, shy = 0;
@@ -682,11 +789,11 @@ function drawSpr(s, x, y, rot = 0, sc = 1) {
 const ETYPES = {
   grunt:    { r: 13, spd: 74, hp: 16, dmg: 9, xp: 1, color: '#ff3b6b', shape: 'tri', face: true },
   dart:     { r: 10, spd: 150, hp: 9, dmg: 7, xp: 1, color: '#ffd23b', shape: 'dia', face: true },
-  brute:    { r: 24, spd: 42, hp: 95, dmg: 16, xp: 5, color: '#b04bff', shape: 'hex', spin: .6 },
-  spitter:  { r: 15, spd: 62, hp: 28, dmg: 8, xp: 3, color: '#ff8a2b', shape: 'sq', spin: 1.6, range: 230, fire: 2.6 },
-  splitter: { r: 19, spd: 58, hp: 46, dmg: 10, xp: 3, color: '#4bff8a', shape: 'circ', split: 3 },
-  mini:     { r: 9, spd: 112, hp: 8, dmg: 6, xp: 1, color: '#4bff8a', shape: 'circ' },
-  boss:     { r: 56, spd: 56, hp: 2400, dmg: 26, xp: 80, color: '#ff3bf0', shape: 'star', spin: .45, boss: true },
+  brute:    { r: 24, spd: 42, hp: 95, dmg: 16, xp: 5, color: '#b04bff', shape: 'hex', face: true },
+  spitter:  { r: 15, spd: 62, hp: 28, dmg: 8, xp: 3, color: '#ff8a2b', shape: 'sq', face: true, range: 230, fire: 2.6 },
+  splitter: { r: 19, spd: 58, hp: 46, dmg: 10, xp: 3, color: '#4bff8a', shape: 'circ', face: true, split: 3 },
+  mini:     { r: 9, spd: 112, hp: 8, dmg: 6, xp: 1, color: '#4bff8a', shape: 'circ', spin: 1.2 },
+  boss:     { r: 56, spd: 56, hp: 2400, dmg: 26, xp: 80, color: '#ff3bf0', shape: 'star', face: true, boss: true },
 };
 
 /* =================== run state =================== */
@@ -761,7 +868,7 @@ function spawnEnemy(type, x, y) {
   }
   let hp = d.hp * hpMul();
   if (d.boss) hp = d.hp * (1 + G.bossN * 1.1) * (1 + G.t / 400);
-  const e = { id: ++G.id, type, d, x, y, hp, max: hp, r: d.r, kx: 0, ky: 0, flash: 0, rot: 0, fire: rnd(.5, d.fire || 1), orb: -9, dead: false,
+  const e = { id: ++G.id, type, d, x, y, hp, max: hp, r: d.r, kx: 0, ky: 0, flash: 0, rot: Math.atan2(p.y - y, p.x - x) + Math.PI / 2, fire: rnd(.5, d.fire || 1), orb: -9, dead: false,
               burst: 3, dash: 5, mode: 'chase', mt: 0, dx: 0, dy: 0 };
   G.en.push(e);
   if (d.boss) { G.boss = e; G.bossN++; $('#bossBar').hidden = false; shake = Math.max(shake, 14); }
@@ -969,7 +1076,12 @@ function update(dt) {
     else if (e.mode === 'dash') { mx = e.dx; my = e.dy; spd = 520; }
     e.x += (mx * spd + e.kx) * dt; e.y += (my * spd + e.ky) * dt;
     const dk = Math.pow(.015, dt); e.kx *= dk; e.ky *= dk;
-    if (e.d.face) e.rot = Math.atan2(uy, ux) + Math.PI / 2; else if (e.d.spin) e.rot += e.d.spin * dt;
+    if (e.d.face) {
+      // heavy aircraft turn slowly; a dashing bomber keeps its heading
+      const ta = e.mode === 'dash' ? Math.atan2(e.dy, e.dx) + Math.PI / 2 : Math.atan2(uy, ux) + Math.PI / 2;
+      const da = Math.atan2(Math.sin(ta - e.rot), Math.cos(ta - e.rot));
+      e.rot += da * Math.min(1, dt * (e.r > 20 ? 2.5 : 9));
+    } else if (e.d.spin) e.rot += e.d.spin * dt;
     e.flash -= dt;
     // keep the swarm from stacking into one blob
     if (!e.d.boss) query(e.x, e.y, e.r, o => {
@@ -1359,7 +1471,7 @@ function render(dt) {
       worldTf(); ctx.globalAlpha = .22 + .18 * Math.sin(now * 30); ctx.strokeStyle = '#ff3bf0'; ctx.lineWidth = e.r * 1.6; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + e.dx * 290, e.y + e.dy * 290); ctx.stroke(); ctx.globalAlpha = 1;
     }
-    drawSpr(sprite(e.d.shape, e.r, e.d.color, e.flash > 0), e.x, e.y, e.rot);
+    drawEnemy(e.type, e.x, e.y, e.rot, e.flash > 0, now + e.id * .37);
   }
 
   ctx.globalCompositeOperation = 'lighter';
@@ -1376,6 +1488,8 @@ function render(dt) {
 
   if (state !== 'dying' && state !== 'over') {
     const blink = p.inv > 0 && Math.floor(now * 20) % 2 === 0;
+    // halo under the player so it never blends into the hostile fighters
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .45; drawSpr(dot(ship().color, 12), p.x, p.y, 0, 1.3); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     if (!blink) drawJet(ship().id, p.x, p.y, p.ang, JET_SCALE, p.bank, Math.min(1, Math.hypot(p.vx, p.vy) / G.s.spd), now);
     worldTf();
     const bw = 34, hpk = clamp(p.hp / p.maxHp, 0, 1);
@@ -1426,7 +1540,7 @@ function renderMenu(dt) {
   for (const d of DEMO) {
     const a = d.a + menuT * .25, r = d.d * sc, e = ETYPES[d.type];
     const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * .55;
-    drawSpr(sprite(e.shape, e.r, e.color), x, y, e.face ? Math.atan2(cy - y, cx - x) + Math.PI / 2 : menuT * (e.spin || 0));
+    drawEnemy(d.type, x, y, Math.atan2(cy - y, cx - x) + Math.PI / 2, false, menuT + d.a);
   }
   ctx.globalCompositeOperation = 'lighter';
   ctx.globalCompositeOperation = 'source-over';
