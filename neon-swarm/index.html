@@ -386,17 +386,44 @@ function audio() {
   if (!AC) {
     try {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      master = AC.createGain(); master.gain.value = save.sound ? .7 : 0; master.connect(AC.destination);
+      master = AC.createGain(); master.gain.value = save.sound ? 1 : 0; master.connect(AC.destination);
       const comp = AC.createDynamicsCompressor(); comp.connect(master);
       sfxBus = AC.createGain(); sfxBus.gain.value = .8; sfxBus.connect(comp);
-      musBus = AC.createGain(); musBus.gain.value = .22; musBus.connect(comp);
+      musBus = AC.createGain(); musBus.gain.value = .3; musBus.connect(comp);
       noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     } catch (e) { AC = null; }
   }
-  if (AC && AC.state === 'suspended') AC.resume();
+  // iOS also reports 'interrupted' after calls or backgrounding
+  if (AC && AC.state !== 'running') { try { AC.resume(); } catch (e) {} }
   return AC;
 }
+
+/* iPhones mute Web Audio while the ring/silent switch is on. Playing a silent media
+   element from a tap moves the page into the "playback" audio session, which is not muted. */
+let unlocked = false, silentEl = null;
+function silentWav() {
+  const n = 2205, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 22050, true); v.setUint32(28, 44100, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return 'data:audio/wav;base64,' + btoa(s);
+}
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  const ac = audio();
+  if (!ac) return;
+  if (!unlocked) {
+    try { const src = ac.createBufferSource(); src.buffer = ac.createBuffer(1, 1, 22050); src.connect(ac.destination); src.start(0); } catch (e) {}
+    try {
+      silentEl = document.createElement('audio'); silentEl.setAttribute('x-webkit-airplay', 'deny'); silentEl.preload = 'auto'; silentEl.loop = true;
+      silentEl.src = silentWav(); const pr = silentEl.play(); if (pr && pr.catch) pr.catch(() => {});
+    } catch (e) {}
+  } else if (silentEl && silentEl.paused) { const pr = silentEl.play(); if (pr && pr.catch) pr.catch(() => {}); }
+  unlocked = ac.state === 'running' || unlocked;
+}
+['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev => addEventListener(ev, unlockAudio, { capture: true, passive: true }));
+document.addEventListener('visibilitychange', () => { if (!document.hidden && AC) unlockAudio(); });
 function tone(f, dur, type = 'sine', vol = .2, slide = 1, delay = 0, bus) {
   if (!AC || !save.sound) return;
   const t0 = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
@@ -1395,7 +1422,7 @@ $('#shipsBtn').onclick = () => { audio(); sfx.click(); renderShop('ships'); show
 $('#metaBtn').onclick = () => { audio(); sfx.click(); renderShop('meta'); show('shop'); };
 $('#shopBack').onclick = () => { sfx.click(); toMenu(); };
 $('#soundBtn').onclick = () => {
-  save.sound = !save.sound; persist(); audio(); if (master) master.gain.value = save.sound ? .7 : 0; sfx.click();
+  save.sound = !save.sound; persist(); audio(); if (master) master.gain.value = save.sound ? 1 : 0; sfx.click();
   $('#soundBtn use').setAttribute('href', save.sound ? '#i-sound' : '#i-mute');
 };
 $('#langBtn').onclick = () => { save.lang = save.lang === 'en' ? 'mk' : 'en'; persist(); applyLang(); sfx.click(); };
